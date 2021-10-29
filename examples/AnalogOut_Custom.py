@@ -19,7 +19,7 @@ elif sys.platform.startswith("darwin"):
 else:
     dwf = cdll.LoadLibrary("libdwf.so")
 
-hzFreq = 1e4
+hzFreq = 1e4  # 10 kHz
 cSamples = 4096
 hdwf = c_int()
 rgdSamples = (c_double*cSamples)()

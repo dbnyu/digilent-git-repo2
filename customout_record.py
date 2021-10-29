@@ -74,6 +74,7 @@ print("Generating custom waveform...")
 dwf.FDwfAnalogOutNodeEnableSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_bool(True))
 dwf.FDwfAnalogOutNodeFunctionSet(hdwf, c_int(0), AnalogOutNodeCarrier, funcCustom)
 dwf.FDwfAnalogOutNodeDataSet(hdwf, c_int(0), AnalogOutNodeCarrier, waveformSamples, c_int(4096))
+# set 
 dwf.FDwfAnalogOutNodeFrequencySet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(1e4))
 dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(2))
 
@@ -88,7 +89,7 @@ dwf.FDwfAnalogInChannelEnableSet(hdwf, c_int(0), c_bool(True))
 dwf.FDwfAnalogInChannelRangeSet(hdwf, c_int(0), c_double(5))
 dwf.FDwfAnalogInAcquisitionModeSet(hdwf, acqmodeRecord)
 dwf.FDwfAnalogInFrequencySet(hdwf, hzAcq)
-dwf.FDwfAnalogInRecordLengthSet(hdwf, c_double(nSamples/hzAcq.value)) # -1 infinite record length
+dwf.FDwfAnalogInRecordLengthSet(hdwf, c_double(nSamples/hzAcq.value)) # sets record length in seconds. length of 0 is infinite record length 
 
 #wait at least 2 seconds for the offset to stabilize
 time.sleep(2)
