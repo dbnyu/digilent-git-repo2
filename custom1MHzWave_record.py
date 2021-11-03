@@ -33,8 +33,10 @@ waveBufferLen = 4096
 
 # variables for input 
 channelInput = c_int(0)
-recordLength = c_double(5.0) # number of seconds
-inputSampleFrequency = c_double(100000)
+recordLength = c_double(1.0) # number of seconds
+inputSampleFrequencyRaw = 2000000
+inputSampleFrequency = c_double(inputSampleFrequencyRaw)
+inputSamplePeriod = 1/inputSampleFrequencyRaw
 inputVoltageRange = c_double(4)
 inputBufferLength = c_int(int(recordLength.value*inputSampleFrequency.value))
 sts = c_byte()
@@ -104,9 +106,9 @@ def configureOutput():
     dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(2))
 
     # timeToRun = c_double(10)
-    timesToRepeat = c_int(715)
-    dwf.FDwfAnalogOutRunSet(hdwf, channelOutput, c_double(10e-6)) # run for x periods
-    dwf.FDwfAnalogOutWaitSet(hdwf, channelOutput, c_double(190e-6)) # wait one pulse time
+    timesToRepeat = c_int(40000)
+    dwf.FDwfAnalogOutRunSet(hdwf, channelOutput, c_double(10e-6)) # s
+    dwf.FDwfAnalogOutWaitSet(hdwf, channelOutput, c_double(190e-6)) # we
     dwf.FDwfAnalogOutRepeatSet(hdwf, channelOutput, timesToRepeat) # repeat  times
 
 
@@ -119,7 +121,7 @@ def configureInput():
 
     # setup acqusition
     dwf.FDwfAnalogInChannelEnableSet(hdwf, c_int(0), c_bool(True))
-    dwf.FDwfAnalogInChannelRangeSet(hdwf, c_int(0), c_double(5))
+    dwf.FDwfAnalogInChannelRangeSet(hdwf, c_int(0), inputVoltageRange)
     dwf.FDwfAnalogInAcquisitionModeSet(hdwf, acqmodeRecord)
     dwf.FDwfAnalogInFrequencySet(hdwf, inputSampleFrequency)
     dwf.FDwfAnalogInRecordLengthSet(hdwf,recordLength)   # record for 5 seconds
@@ -173,12 +175,16 @@ def recordData():
     return rgdSamples
 
 def plotData(myWave):
-    plt.plot(np.fromiter(myWave, dtype=float))
+    outputTimespots = np.linspace(0,recordLength,num=inputSampleFrequencyRaw)
+    plt.plot(outputTimespots,np.fromiter(myWave, dtype=float))
+    plt.xlabel('seconds')
+    plt.ylabel('voltage')
+    plt.title('waveform recorded')
     with open('waverecord.csv', 'w', newline='') as wave_file:
         wave_writer = csv.writer(wave_file, delimiter = ',')
         index = 0
         for x in myWave:
-            wave_writer.writerow([index,x])
+            wave_writer.writerow([index*inputSamplePeriod,x])
             index = index + 1
     plt.show()
 
