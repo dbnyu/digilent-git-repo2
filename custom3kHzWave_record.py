@@ -84,13 +84,13 @@ def configureOutput():
     # generate waveform samples
     waveformSamples = (c_double*waveBufferLen)()
     # create buffer samples for one period of sine wave
-    timespots = np.linspace(0,1.0/waveFreq,num=waveBufferLen)
+    timespots = np.linspace(0,wavePeriod,num=waveBufferLen)
     index = 0
     for t in timespots:
         waveformSamples[index] = math.sin(t*2*math.pi*waveFreq)
         index = index+1
-    # plt.plot(waveformSamples)
-    # plt.title('wavesamples')
+    # plt.plot(timespots,waveformSamples)
+    # plt.title('wavesamples at ' + str(waveFreq))
     # plt.show()
     print("Generating custom waveform...")
 
@@ -100,7 +100,7 @@ def configureOutput():
     dwf.FDwfAnalogOutNodeFunctionSet(hdwf, c_int(0), AnalogOutNodeCarrier, funcCustom)
     dwf.FDwfAnalogOutNodeDataSet(hdwf, c_int(0), AnalogOutNodeCarrier, waveformSamples, c_int(waveBufferLen))
     # set 
-    dwf.FDwfAnalogOutNodeFrequencySet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(3000))
+    dwf.FDwfAnalogOutNodeFrequencySet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(waveFreq))
     dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(2))
 
     # timeToRun = c_double(10)
