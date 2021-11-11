@@ -8,12 +8,18 @@
 
 from ctypes import *
 import time
+import datetime
+import os
 from dwfconstants import *
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import math
 import csv
+
+areaname = "thigh01"
+folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\two_transducer_test"
+
 
 # check which operating system is running
 if sys.platform.startswith("win"):
@@ -34,6 +40,7 @@ waveBufferLen = 4096
 # variables for input 
 channelInput = c_int(0)
 recordLength = c_double(5.0) # number of seconds
+rawInputSampleFrequency = c_double(100000)
 inputSampleFrequency = c_double(100000)
 inputVoltageRange = c_double(4)
 inputBufferLength = c_int(int(recordLength.value*inputSampleFrequency.value))
@@ -66,6 +73,7 @@ def main():
 
     recordedWave = recordData()
 
+    saveData(recordedWave)
     plotData(recordedWave)
 
     # dc = sum(rg)/len(rg)
@@ -172,14 +180,21 @@ def recordData():
     dwf.FDwfDeviceCloseAll()
     return rgdSamples
 
-def plotData(myWave):
-    plt.plot(np.fromiter(myWave, dtype=float))
-    with open('waverecord.csv', 'w', newline='') as wave_file:
+def saveData(myWave):
+    currentTime = datetime.datetime.now().strftime("%Y%m%d-%Hh%Mm%Ss")
+
+    filename = folderPath +'\\' + areaname + '_' + currentTime +'.csv' 
+
+    with open(filename, 'w', newline='') as wave_file:
         wave_writer = csv.writer(wave_file, delimiter = ',')
         index = 0
         for x in myWave:
-            wave_writer.writerow([index,x])
+            wave_writer.writerow([index,(index/inputSampleFrequency),x])
             index = index + 1
+
+
+def plotData(myWave):
+    plt.plot(np.fromiter(myWave, dtype=float))
     plt.show()
 
 

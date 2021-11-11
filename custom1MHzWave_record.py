@@ -8,12 +8,17 @@
 
 from ctypes import *
 import time
+import datetime
+import os
 from dwfconstants import *
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import math
 import csv
+
+areaname = "thigh01"
+folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\two_transducer_test"
 
 # check which operating system is running
 if sys.platform.startswith("win"):
@@ -54,27 +59,11 @@ def main():
     print("Wait after first device opening the analog in offset to stabilize")
     time.sleep(2)
 
-
-    # sts = c_int()
-    # while True:
-    #     dwf.FDwfAnalogInStatus(hdwf, c_int(1), byref(sts))
-    #     if sts.value == DwfStateDone.value :
-    #         break
-    #     time.sleep(0.1)
-    # print("   done")
-
-    # rg = (c_double*1000)()
-    # dwf.FDwfAnalogInStatusData(hdwf, c_int(0), rg, len(rg)) # get channel 1 data
-
     recordedWave = recordData()
 
+    saveData(recordedWave)
     plotData(recordedWave)
 
-    # dc = sum(rg)/len(rg)
-    # print("DC: "+str(dc)+"V")
-
-    # plt.plot(np.fromiter(rg, dtype = float))
-    # plt.show()
 
 def configureOutput():
     # try to recreate the 3kHz wave that is in the other example, but with custom waveform
@@ -91,13 +80,13 @@ def configureOutput():
     for t in timespots:
         waveformSamples[index] = math.sin(t*2*math.pi*waveFreq)
         index = index+1
+    # **** PLOT TO DOUBLE CHECK IF THE TIME FORM IS CORRECT ****
     # plt.plot(timespots,waveformSamples,marker='.')
     # plt.title('wavesamples at ' + str(waveFreq))
     # plt.show()
     print("Generating custom waveform...")
 
     # settings for output
-    # dwf.FDwfAnalogOutEnableSet(hdwf, c_int(0), c_int(1)) # 1 = Sine wave")
     dwf.FDwfAnalogOutNodeEnableSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_bool(True))
     dwf.FDwfAnalogOutNodeFunctionSet(hdwf, c_int(0), AnalogOutNodeCarrier, funcCustom)
     dwf.FDwfAnalogOutNodeDataSet(hdwf, c_int(0), AnalogOutNodeCarrier, waveformSamples, c_int(waveBufferLen))
@@ -105,7 +94,7 @@ def configureOutput():
     dwf.FDwfAnalogOutNodeFrequencySet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(waveFreq))
     dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(2))
 
-    # timeToRun = c_double(10)
+    # 40000 times to repeat is to be able to have it run for at least
     timesToRepeat = c_int(40000)
     dwf.FDwfAnalogOutRunSet(hdwf, channelOutput, c_double(10e-6)) # s
     dwf.FDwfAnalogOutWaitSet(hdwf, channelOutput, c_double(190e-6)) # we
@@ -174,18 +163,24 @@ def recordData():
     dwf.FDwfDeviceCloseAll()
     return rgdSamples
 
+def saveData(myWave):
+    currentTime = datetime.datetime.now().strftime("%Y%m%d-%Hh%Mm%Ss")
+
+    filename = folderPath +'\\' + areaname + '_' + currentTime +'.csv' 
+
+    with open(filename, 'w', newline='') as wave_file:
+        wave_writer = csv.writer(wave_file, delimiter = ',')
+        index = 0
+        for x in myWave:
+            wave_writer.writerow([index,(index*inputSamplePeriod),x])
+            index = index + 1
+
 def plotData(myWave):
     outputTimespots = np.linspace(0,recordLength,num=inputSampleFrequencyRaw)
     plt.plot(outputTimespots,np.fromiter(myWave, dtype=float))
     plt.xlabel('seconds')
     plt.ylabel('voltage')
     plt.title('waveform recorded')
-    with open('waverecord.csv', 'w', newline='') as wave_file:
-        wave_writer = csv.writer(wave_file, delimiter = ',')
-        index = 0
-        for x in myWave:
-            wave_writer.writerow([index*inputSamplePeriod,x])
-            index = index + 1
     plt.show()
 
 
