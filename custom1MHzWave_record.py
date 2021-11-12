@@ -17,7 +17,7 @@ import numpy as np
 import math
 import csv
 
-areaname = "thigh01"
+areaname = "gel_01"
 folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\two_transducer_test"
 
 # check which operating system is running
@@ -35,6 +35,11 @@ channelOutput = c_int(0)
 waveFreq = 1e6
 wavePeriod = 1.0/waveFreq
 waveBufferLen = 4096
+
+fLost = 0
+fCorrupted = 0
+numLost = 0
+numCorrupted = 0
 
 # variables for input 
 channelInput = c_int(0)
@@ -62,7 +67,7 @@ def main():
     recordedWave = recordData()
 
     saveData(recordedWave)
-    plotData(recordedWave)
+    # plotData(recordedWave)
 
 
 def configureOutput():
@@ -94,11 +99,13 @@ def configureOutput():
     dwf.FDwfAnalogOutNodeFrequencySet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(waveFreq))
     dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(2))
 
-    # 40000 times to repeat is to be able to have it run for at least
-    timesToRepeat = c_int(40000)
-    dwf.FDwfAnalogOutRunSet(hdwf, channelOutput, c_double(10e-6)) # s
-    dwf.FDwfAnalogOutWaitSet(hdwf, channelOutput, c_double(190e-6)) # we
-    dwf.FDwfAnalogOutRepeatSet(hdwf, channelOutput, timesToRepeat) # repeat  times
+    # 40000 times to repeat is to be able to have it run for at least a few seconds
+    timesToRepeat = c_int(40000)  # no unit
+    pulseWidth = c_double(10e-6)  # in seconds
+    pulseWait = c_double(190e-6)  # in seconds
+    dwf.FDwfAnalogOutRunSet(hdwf, channelOutput, pulseWidth) 
+    dwf.FDwfAnalogOutWaitSet(hdwf, channelOutput, pulseWait) 
+    dwf.FDwfAnalogOutRepeatSet(hdwf, channelOutput, timesToRepeat) 
 
 
 
@@ -113,7 +120,7 @@ def configureInput():
     dwf.FDwfAnalogInChannelRangeSet(hdwf, c_int(0), inputVoltageRange)
     dwf.FDwfAnalogInAcquisitionModeSet(hdwf, acqmodeRecord)
     dwf.FDwfAnalogInFrequencySet(hdwf, inputSampleFrequency)
-    dwf.FDwfAnalogInRecordLengthSet(hdwf,recordLength)   # record for 5 seconds
+    dwf.FDwfAnalogInRecordLengthSet(hdwf,recordLength)   # record for x seconds
 
     # print("Configure analog in")
     # dwf.FDwfAnalogInFrequencySet(hdwf, inputSampleFrequency)
@@ -122,12 +129,11 @@ def configureInput():
     # dwf.FDwfAnalogInBufferSizeSet(hdwf, inputBufferLength)
 
 def recordData():
+    global fLost, fCorrupted, numLost, numCorrupted
     cSamples = 0
     cAvailable = c_int()
     cLost = c_int()
     cCorrupted = c_int()
-    fLost = 0
-    fCorrupted = 0
     nSamples =  int(recordLength.value*inputSampleFrequency.value)
     rgdSamples = (c_double*nSamples)()
 
@@ -143,11 +149,13 @@ def recordData():
         dwf.FDwfAnalogInStatusRecord(hdwf, byref(cAvailable), byref(cLost), byref(cCorrupted))
         
         cSamples += cLost.value
-        
+
         if cLost.value:
             fLost = 1
+            numLost += cLost.value
         if cCorrupted.value:
             fCorrupted = 1
+            numCorrupted += cCorrupted.value
         
         if cAvailable.value==0:
             continue
@@ -164,16 +172,26 @@ def recordData():
     return rgdSamples
 
 def saveData(myWave):
+    print('savingData')
     currentTime = datetime.datetime.now().strftime("%Y%m%d-%Hh%Mm%Ss")
 
-    filename = folderPath +'\\' + areaname + '_' + currentTime +'.csv' 
+    data_filename = folderPath +'\\' + areaname + '_' + currentTime +'.csv' 
+    flag_filename = folderPath +'\\' + areaname + '_' + currentTime +'_flags.txt' 
 
-    with open(filename, 'w', newline='') as wave_file:
+    with open(data_filename, 'w', newline='') as wave_file:
         wave_writer = csv.writer(wave_file, delimiter = ',')
         index = 0
         for x in myWave:
             wave_writer.writerow([index,(index*inputSamplePeriod),x])
             index = index + 1
+            if(index%1000==0):
+                print('.',end='')
+    print('\nfile written at' + filename)
+
+    with open(flag_filename,'w',newline='') as flag_file:
+        flag_file.write('flag corrupted:{}, numCorrupted: {}\n'.format(fCorrupted,numCorrupted))
+        flag_file.write('flag lost: {}, numLost: {}'.format(fLost, numLost))
+    print('\nfile written at' + filename)
 
 def plotData(myWave):
     outputTimespots = np.linspace(0,recordLength,num=inputSampleFrequencyRaw)
