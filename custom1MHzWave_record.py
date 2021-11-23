@@ -17,8 +17,8 @@ import numpy as np
 import math
 import csv
 
-areaname = "gel_01"
-folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\two_transducer_test"
+areaname = "numCorruptwithNumAvail"
+folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\testCorrupted"
 
 # check which operating system is running
 if sys.platform.startswith("win"):
@@ -40,6 +40,8 @@ fLost = 0
 fCorrupted = 0
 numLost = 0
 numCorrupted = 0
+numAvailable =[] 
+arraynumcorrupted =[] 
 
 # variables for input 
 channelInput = c_int(0)
@@ -129,7 +131,7 @@ def configureInput():
     # dwf.FDwfAnalogInBufferSizeSet(hdwf, inputBufferLength)
 
 def recordData():
-    global fLost, fCorrupted, numLost, numCorrupted
+    global fLost, fCorrupted, numLost, numCorrupted, numAvailable, arraynumcorrupted
     cSamples = 0
     cAvailable = c_int()
     cLost = c_int()
@@ -139,6 +141,8 @@ def recordData():
 
     print("Starting acquisition...")
     dwf.FDwfAnalogInConfigure(hdwf, c_int(1), c_int(1))
+    numAvailable = []
+    print("afterconfigure")
 
     while cSamples < nSamples:
         dwf.FDwfAnalogInStatus(hdwf, c_int(1), byref(sts))
@@ -147,6 +151,8 @@ def recordData():
             continue
 
         dwf.FDwfAnalogInStatusRecord(hdwf, byref(cAvailable), byref(cLost), byref(cCorrupted))
+        numAvailable.append(cAvailable.value)
+        arraynumcorrupted.append(cCorrupted.value)
         
         cSamples += cLost.value
 
@@ -177,6 +183,7 @@ def saveData(myWave):
 
     data_filename = folderPath +'\\' + areaname + '_' + currentTime +'.csv' 
     flag_filename = folderPath +'\\' + areaname + '_' + currentTime +'_flags.txt' 
+    available_filename = folderPath +'\\' + areaname + '_' + currentTime +'_available.txt' 
 
     with open(data_filename, 'w', newline='') as wave_file:
         wave_writer = csv.writer(wave_file, delimiter = ',')
@@ -186,12 +193,17 @@ def saveData(myWave):
             index = index + 1
             if(index%1000==0):
                 print('.',end='')
-    print('\nfile written at' + filename)
+    print('\nfile written at' + data_filename)
 
     with open(flag_filename,'w',newline='') as flag_file:
         flag_file.write('flag corrupted:{}, numCorrupted: {}\n'.format(fCorrupted,numCorrupted))
         flag_file.write('flag lost: {}, numLost: {}'.format(fLost, numLost))
-    print('\nfile written at' + filename)
+    print('\nfile written at' + flag_filename)
+
+    with open(available_filename,'w',newline='') as available_file:
+        for i in range(0,len(numAvailable)):
+            available_file.write('{},{}\n'.format(numAvailable[i],arraynumcorrupted[i]))
+    print('\nfile written at' + available_filename)
 
 def plotData(myWave):
     outputTimespots = np.linspace(0,recordLength,num=inputSampleFrequencyRaw)
