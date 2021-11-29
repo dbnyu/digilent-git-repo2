@@ -17,7 +17,7 @@ import numpy as np
 import math
 import csv
 
-areaname = "numCorruptwithNumAvail"
+areaname = "bnctest_separate_inair"
 folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\testCorrupted"
 
 # check which operating system is running
