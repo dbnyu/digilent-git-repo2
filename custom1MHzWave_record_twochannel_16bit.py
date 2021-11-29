@@ -17,7 +17,7 @@ import numpy as np
 import math
 import csv
 
-areaname = "transducers02"
+areaname = "inUSgel_lgBUF_4milSample_lessarr"
 folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\testdoublerecord"
 
 # check which operating system is running
@@ -35,7 +35,7 @@ channelOutput = c_int(0)
 waveFreq = 1e6
 # waveFreq = 0.5e6
 wavePeriod = 1.0/waveFreq
-waveBufferLen = 4096
+waveBufferLen = 1024 
 
 fLost = 0
 fCorrupted = 0
@@ -47,12 +47,13 @@ arraynumcorrupted =[]
 # variables for input 
 channelInput1 = c_int(0)
 channelInput2 = c_int(1)
+recordLengthRaw = 1.0
 recordLength = c_double(1.0) # number of seconds
-inputSampleFrequencyRaw = 2000000
+inputSampleFrequencyRaw = 4000000.0
 inputSampleFrequency = c_double(inputSampleFrequencyRaw)
 inputSamplePeriod = 1/inputSampleFrequencyRaw
 inputVoltageRange = c_double(4)
-inputBufferLength = c_int(int(recordLength.value*inputSampleFrequency.value))
+inputBufferLength = c_int(int(recordLengthRaw*inputSampleFrequencyRaw))
 sts = c_byte()
 
 def main():
@@ -101,12 +102,12 @@ def configureOutput():
     dwf.FDwfAnalogOutNodeDataSet(hdwf, c_int(0), AnalogOutNodeCarrier, waveformSamples, c_int(waveBufferLen))
     # set 
     dwf.FDwfAnalogOutNodeFrequencySet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(waveFreq))
-    dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(2))
+    dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(5))
 
     # 40000 times to repeat is to be able to have it run for at least a few seconds
     timesToRepeat = c_int(40000)  # no unit
     pulseWidth = c_double(10e-6)  # in seconds
-    pulseWait = c_double(190e-6)  # in seconds
+    pulseWait = c_double(500e-6)  # in seconds
     dwf.FDwfAnalogOutRunSet(hdwf, channelOutput, pulseWidth) 
     dwf.FDwfAnalogOutWaitSet(hdwf, channelOutput, pulseWait) 
     dwf.FDwfAnalogOutRepeatSet(hdwf, channelOutput, timesToRepeat) 
@@ -142,8 +143,8 @@ def recordData():
     cLost = c_int()
     cCorrupted = c_int()
     nSamples =  int(recordLength.value*inputSampleFrequency.value)
-    rgdSamples1 = (c_double*nSamples)()
-    rgdSamples2 = (c_double*nSamples)()
+    rgdSamples1 = (c_int16*nSamples)()
+    rgdSamples2 = (c_int16*nSamples)()
 
     print("Starting acquisition...")
     dwf.FDwfAnalogInConfigure(hdwf, c_int(1), c_int(1))
@@ -155,25 +156,27 @@ def recordData():
             continue
 
         dwf.FDwfAnalogInStatusRecord(hdwf, byref(cAvailable), byref(cLost), byref(cCorrupted))
-        numAvailable.append(cAvailable.value)
-        arraynumcorrupted.append(cCorrupted.value)
+        # numAvailable.append(cAvailable.value)
+        # arraynumcorrupted.append(cCorrupted.value)
         
         cSamples += cLost.value
+        # numLost += cLost.value
+        # numCorrupted += cCorrupted.value
 
-        if cLost.value:
-            fLost = 1
-            numLost += cLost.value
-        if cCorrupted.value:
-            fCorrupted = 1
-            numCorrupted += cCorrupted.value
+        # if cLost.value:
+        #     fLost = 1
+        #     numLost += cLost.value
+        # if cCorrupted.value:
+        #     fCorrupted = 1
+        #     numCorrupted += cCorrupted.value
         if cAvailable.value==0:
             continue
-
+        
         if cSamples+cAvailable.value > nSamples:
             cAvailable = c_int(nSamples - cSamples)
         
-        dwf.FDwfAnalogInStatusData(hdwf, channelInput1, byref( rgdSamples1, sizeof(c_double)*cSamples), cAvailable)
-        dwf.FDwfAnalogInStatusData(hdwf, channelInput2, byref( rgdSamples2, sizeof(c_double)*cSamples), cAvailable)
+        dwf.FDwfAnalogInStatusData16(hdwf, channelInput1, byref( rgdSamples1, sizeof(c_int16)*cSamples),c_int(0), cAvailable)
+        dwf.FDwfAnalogInStatusData16(hdwf, channelInput2, byref( rgdSamples2, sizeof(c_int16)*cSamples),c_int(0), cAvailable)
         cSamples += cAvailable.value
     
     # deinitialize device
@@ -236,7 +239,10 @@ def initializeDevice():
 
     print("Opening first device")
     hdwf = c_int()
-    dwf.FDwfDeviceOpen(c_int(0), byref(hdwf))
+    # config #2 (index-1) is scope 16k buffer instead of 8k buffer
+    # dwf.FDwfDeviceOpen(c_int(0), byref(hdwf))
+    configNum = 1
+    dwf.FDwfDeviceConfigOpen(c_int(0),c_int(configNum),byref(hdwf))
 
     if hdwf.value == hdwfNone.value:
         print("failed to open device")
