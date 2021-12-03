@@ -1,5 +1,13 @@
 """Single Pulse repeated & using 2nd scope as trigger for windowed acquisition.
 
+    Theory:
+        - AnalogOut_Pulse.py does a single pulse, repeated N times
+            - this can probably be replaced by any excitation pulse waveform
+        - The excitation pulse triggers the analogin scope to record a SINGLE acquisition
+            - small number of samples will hopefully allow higher sample rates > 2 MHz
+        - the small record buffer is copied into RAM, and the scope waits for the next trigger
+        - recording 16bit ints, also with the hope of more efficiency/tighter loop timing
+
     Using AnalogOut_Pulse.py
     and
     AnalogIn_Trigger.py
@@ -7,8 +15,6 @@
     Doug Brantner 12/2/2021
 """
 
-# Wavegen Output
-# from AnalogOut_Pulse.py:
 
 from ctypes import *
 from dwfconstants import *
@@ -19,12 +25,12 @@ import time
 # TODO look at AnalogInDigitalIn_Acquisition.py for trigger sync between analog/digital inputs...
 
 def print_array(arr, line_len=10):
-    """print an array horizontally.
+    """print a Ctypes array, with optional line breaks
     
-    arr = ctypes array
-    line_len = print a newline after this many entries; set to zero or None to print 1 line
+        arr = ctypes array
+        line_len = print a newline after this many entries; 
+                    set to zero or None to print 1 line
     """
-
     for i in range(len(arr)):
         print(str(arr[i]) + ',', end='')
 
@@ -36,7 +42,7 @@ def print_array(arr, line_len=10):
 
 # Pulser Parameters (Wavegen Output #1):
 # User Editable:
-N_acquisitions = 100;   # number of pulse/echo repetitions to acquire
+N_ACQUISITIONS = 100;   # number of pulse/echo repetitions to acquire
 wait_time = 0.01;       # seconds between acquisiztions (== TR period)
 pulse_width = 1e-6      # pulse width in seconds (???) TODO CHECK THIS
 # TODO should pulse width be 1/2 usec?
@@ -45,7 +51,7 @@ pulse_width = 1e-6      # pulse width in seconds (???) TODO CHECK THIS
 # Recording Parameters:
 # From AnalogIn_Trigger.py
 # User Editable:
-INPUT_SAMPLE_RATE = 4e6         # Hz
+INPUT_SAMPLE_RATE = 10e6         # Hz
 INPUT_ECHO_TIME = 200e-6        # time to record a single echo (seconds)
 # TODO change to "single acquisition time"
 TRIGGER_VOLTAGE = 1.0           # volts
@@ -62,7 +68,7 @@ sts = c_byte()
 
 #rgSamples1 = (c_int16*INPUT_SAMPLE_SIZE)()  # allocate output array for ch 1
 
-big_output_len = int(int(INPUT_SAMPLE_SIZE) * int(N_acquisitions))
+big_output_len = int(int(INPUT_SAMPLE_SIZE) * int(N_ACQUISITIONS))
 big_output_buffer = (c_int16 * big_output_len)()
 #big_output_buffer = (100 * c_int16)()
 #print_array(big_output_buffer, 0)
@@ -72,10 +78,10 @@ big_output_buffer = (c_int16 * big_output_len)()
 BIG_BUFFER_FULL_TIME = big_output_len * INPUT_ECHO_TIME
 print('full record time: %f sec' % BIG_BUFFER_FULL_TIME)
 
-total_record_time = N_acquisitions * wait_time  # just for reference
+total_record_time = N_ACQUISITIONS * wait_time  # just for reference
 
 
-print('Acquiring %d periods over %.2f seconds...' %  (N_acquisitions, total_record_time))
+print('Acquiring %d periods over %.2f seconds...' %  (N_ACQUISITIONS, total_record_time))
 
 
 
@@ -114,6 +120,11 @@ dwf.FDwfDeviceAutoConfigureSet(hdwf, c_int(0))
 
 
 
+
+
+# Wavegen Output
+# from AnalogOut_Pulse.py:
+
 # Single Square Wave Pulse:
 dwf.FDwfAnalogOutNodeEnableSet(hdwf, channel, AnalogOutNodeCarrier, c_bool(True))
 dwf.FDwfAnalogOutIdleSet(hdwf, channel, DwfAnalogOutIdleOffset)
@@ -125,7 +136,7 @@ dwf.FDwfAnalogOutNodeOffsetSet(hdwf, channel, AnalogOutNodeCarrier, c_double(0))
 dwf.FDwfAnalogOutRunSet(hdwf, channel, c_double(pulse_width)) # pulse length in time (?)
 dwf.FDwfAnalogOutWaitSet(hdwf, channel, c_double(wait_time)) # wait length  10 ms = 100 Hz repetition frequency (TR)
 #dwf.FDwfAnalogOutWaitSet(hdwf, channel, c_double(2e-6)) # wait length
-dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(N_acquisitions)) # repeat N times
+dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(N_ACQUISITIONS)) # repeat N times
 # TODO count # of pulses (i.e. small number like 10)
 # TODO see if square wave can go +/- or only +????
 
@@ -192,17 +203,19 @@ dwf.FDwfAnalogOutConfigure(hdwf, channel, c_bool(True))     # this starts actual
 
 # TODO copy to main output buffer...
 
-# TODO figure out analogin trigger timeout (see p.34 of docs)
 
 
 big_output_pointer = 0  # pointer into big_output_buffer to write full (single) acquisition blocks
 big_output_stride = INPUT_SAMPLE_SIZE * sizeof(c_int16)
 
 
-for iTrigger in range(N_acquisitions):  # TODO this should be until big_buffer is filled (or N_acquistions)
+# TODO figure out analogin trigger timeout (see p.34 of docs)
+# TODO change name; itrigger is a vestige of one of the example files
+for iTrigger in range(N_ACQUISITIONS):  # TODO this should be until big_buffer is filled (or N_acquistions)
     # new acquisition is started automatically after done state 
 
-    print('start loop %d' % iTrigger)
+    #print('start loop %d' % iTrigger)
+    print('.', end='')
 
     # busy wait loop for buffer to finish filling for 1 acquisition
     while True:
@@ -262,6 +275,7 @@ print('INPUT_SAMPLE_SIZE: %d' % INPUT_SAMPLE_SIZE)
 print('INPUT_SAMPLE_RATE %f' % INPUT_SAMPLE_RATE )
 
 plt.plot(big_output_buffer[:], '.-', label='bigbuffer')
+plt.title('%d Acq. @ %.2e Hz Sample Rate' % (N_ACQUISITIONS, INPUT_SAMPLE_RATE))
 plt.xlabel('Index')
 plt.ylabel('int16 "voltage"')
 plt.legend()
