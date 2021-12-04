@@ -8,6 +8,16 @@
         - the small record buffer is copied into RAM, and the scope waits for the next trigger
         - recording 16bit ints, also with the hope of more efficiency/tighter loop timing
 
+    NOTES:
+        - seems to work with 1 channel scope up to 100Mhz
+            - need to use smaller acquisition window (time period) with high sample rates (ie. buffer/USB bandwidth)
+        - optional to convert to voltages
+        - plots/pseudo-timescale is reconstructed from indexes, and DOES NOT include dead time 
+            aka. 'wait time' between the end of 1 acquisition and the beginning of the next
+            - e.g. for a 200usec (0.2ms) echo time and 10ms repetition time, 
+              there is 9.8ms per of downtime (per repetition) that is "missing" from this recorded data
+              (and therefore the pseudo-A-mode plots as well).
+
     Using AnalogOut_Pulse.py
     and
     AnalogIn_Trigger.py
@@ -15,10 +25,27 @@
     Doug Brantner 12/2/2021
 """
 
+# TODO - check voltage conversion - only showing 2.5V on plots here, but should be 5V
+#        - also shows up as 5V on external (Doug's Rigol) scope (with 1x probe attenuation setting & direct coax input)
+#           (the pulse is 0-5V on external scope, which should be correct)
+
+# TODO - make the trigger appear at the start of the acquisition, not the middle
+#       - TODO maybe some pre-record for scope/pulse sync evaluation...
+
+# TODO - could reshape to M-mode here... since we are capturing exact echo time windows here
+#       and then arbitrarily displaying as A-mode (which is inaccurate anyway - see NOTES above)
+#       so we could just as easily convert/save as M-mode instead...
+#       May be more efficient to store as 16-bit files, (what about WAV files???) 
+#       but the orientation of the data (linear vs. matrix) should not affect the file size.
+
+# TODO - could auto-set the acq time window for very high frequencies (ie max it out based on AD2 buffer size)
+# TODO - have not tried increasing scope memory w/ AD2 config yet...
+
 
 from ctypes import *
 from dwfconstants import *
 import matplotlib.pyplot as plt
+import numpy as np
 import sys
 import time
 
@@ -51,34 +78,43 @@ pulse_width = 1e-6      # pulse width in seconds (???) TODO CHECK THIS
 # Recording Parameters:
 # From AnalogIn_Trigger.py
 # User Editable:
-INPUT_SAMPLE_RATE = 10e6         # Hz
+# NOTE: AD2 will limit sample rates > 100Mhz without any warning.
+INPUT_SAMPLE_RATE = 10e6      # Hz 
 INPUT_ECHO_TIME = 200e-6        # time to record a single echo (seconds)
 # TODO change to "single acquisition time"
 TRIGGER_VOLTAGE = 1.0           # volts
 
+SCOPE_VOLT_RANGE_CH1 = 5.0      # oscilloscope ch1 input range (volts)
+SCOPE_VOLT_OFFSET_CH1 = 0.       # oscilloscope ch1 offset (volts)  # TODO not yet implemented (only using for plotting atm.)
+# TODO adjust voltage range for smaller echos? (ie. trigger-only channel can be 5V, but is scope more sensitive for echos if we use lower range? Or is this only for post-processing reconstruction of the voltage values?) 
+# ie. does this have any bearing on the int16 values or not???
 
 # TODO smarter input sanitizing/int casting here:
 
 # internal recording parameters:
 # for a single acquisition:
 INPUT_SAMPLE_SIZE = int(INPUT_SAMPLE_RATE * INPUT_ECHO_TIME)     # buffer size for 1 acquisition
+INPUT_SAMPLE_PERIOD = 1. / INPUT_SAMPLE_RATE    # seconds per acquired sample
 sts = c_byte()
-#rgdSamples = (c_double*8192)()   # TODO adjust this to final output buffer size (?)
 
 
-#rgSamples1 = (c_int16*INPUT_SAMPLE_SIZE)()  # allocate output array for ch 1
 
 big_output_len = int(int(INPUT_SAMPLE_SIZE) * int(N_ACQUISITIONS))
 big_output_buffer = (c_int16 * big_output_len)()
-#big_output_buffer = (100 * c_int16)()
 #print_array(big_output_buffer, 0)
-#big_output_buffer.contents.size
-#sys.exit()
 
-BIG_BUFFER_FULL_TIME = big_output_len * INPUT_ECHO_TIME
+
+# TODO double check these:
+BIG_BUFFER_FULL_TIME = big_output_len * INPUT_ECHO_TIME     # this does NOT include dead time between repetitions! 
 print('full record time: %f sec' % BIG_BUFFER_FULL_TIME)
 
 total_record_time = N_ACQUISITIONS * wait_time  # just for reference
+
+
+if INPUT_SAMPLE_RATE > 100e6:
+    print('WARNING: sample rates > 1Mhz not supported by Digilent AD2 device!')
+    # TODO limit here so plots don't show erroneous high acquisition frequencies?
+
 
 
 print('Acquiring %d periods over %.2f seconds...' %  (N_ACQUISITIONS, total_record_time))
@@ -125,6 +161,8 @@ dwf.FDwfDeviceAutoConfigureSet(hdwf, c_int(0))
 # Wavegen Output
 # from AnalogOut_Pulse.py:
 
+# TODO break out important settings to user-edit section up top (amplitude, etc)
+
 # Single Square Wave Pulse:
 dwf.FDwfAnalogOutNodeEnableSet(hdwf, channel, AnalogOutNodeCarrier, c_bool(True))
 dwf.FDwfAnalogOutIdleSet(hdwf, channel, DwfAnalogOutIdleOffset)
@@ -143,8 +181,6 @@ dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(N_ACQUISITIONS)) # repeat N time
 
 
 
-# TODO is this gonna work? multiple pings are happenings automatically now (already started)
-# but we need to read in a loop...
 # TODO may need a TR counter or a timeout (ie. if we lose some pings, when do we stop?)
 # TODO is there a wavegen off trigger? ie. when the automatic pulse train stops????
 
@@ -157,11 +193,11 @@ dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(N_ACQUISITIONS)) # repeat N time
 # From AnalogIn_Trigger.py
 #set up acquisition
 dwf.FDwfAnalogInFrequencySet(hdwf, c_double(INPUT_SAMPLE_RATE))
-#dwf.FDwfAnalogInBufferSizeSet(hdwf, c_int(8192))    # TODO adjust to single echo size (?)
 dwf.FDwfAnalogInBufferSizeSet(hdwf, c_int(INPUT_SAMPLE_SIZE))
 dwf.FDwfAnalogInChannelEnableSet(hdwf, c_int(0), c_bool(True))
 # TODO enable channel 2 also? (YES need to enable separately) - look at dualrecord (Leanna)
-dwf.FDwfAnalogInChannelRangeSet(hdwf, c_int(0), c_double(5))    # TODO adjust voltage range for smaller echos?
+
+dwf.FDwfAnalogInChannelRangeSet(hdwf, c_int(0), c_double(SCOPE_VOLT_RANGE_CH1))
 # TODO channelrangeset for ch2
 # TODO does this matter if using raw 16bit inputs?
 
@@ -223,6 +259,7 @@ for iTrigger in range(N_ACQUISITIONS):  # TODO this should be until big_buffer i
         if sts.value == DwfStateDone.value :
             break
         #time.sleep(0.001) # TODO THIS SHOULD BE MUCH SMALLER O(1-10 microseconds)
+        # TODO add this back in? or leave it? would be intersting to time this loop or count it especially at very high sample rates
     
     #dwf.FDwfAnalogInStatusData(hdwf, 0, rgdSamples, 8192) # get channel 1 data
     #dwf.FDwfAnalogInStatusData(hdwf, 0, rgdSamples, INPUT_SAMPLE_SIZE) # get channel 1 data
@@ -230,12 +267,6 @@ for iTrigger in range(N_ACQUISITIONS):  # TODO this should be until big_buffer i
     #dwf.FDwfAnalogInStatusData(hdwf, 1, rgdSamples, 8192) # get channel 2 data
 
 
-    # TODO START HERE - look at AnalogIn_Record_int16.py
-    #dwf.FDwfAnalogInStatusData16(hdwf, 
-    #                            c_int(0),   # channel 1
-    #                            byref(rgSamples1, sizeof(c_int16)*iSample), 
-    #                            c_int(iBuffer), 
-    #                            c_int(cSamples)) # get channel 1 data
     dwf.FDwfAnalogInStatusData16(hdwf, 
                                  c_int(0),   # channel 1
                                  byref(big_output_buffer, big_output_pointer),
@@ -271,12 +302,51 @@ dwf.FDwfDeviceClose(hdwf)
 
 print('full record time: %f sec' % BIG_BUFFER_FULL_TIME)
 print('full record N samples: %d' % big_output_len) 
-print('INPUT_SAMPLE_SIZE: %d' % INPUT_SAMPLE_SIZE)
+print('INPUT_SAMPLE_SIZE: %d (for 1 acquisition)' % INPUT_SAMPLE_SIZE)
 print('INPUT_SAMPLE_RATE %f' % INPUT_SAMPLE_RATE )
 
-plt.plot(big_output_buffer[:], '.-', label='bigbuffer')
-plt.title('%d Acq. @ %.2e Hz Sample Rate' % (N_ACQUISITIONS, INPUT_SAMPLE_RATE))
-plt.xlabel('Index')
-plt.ylabel('int16 "voltage"')
+approx_usb_bitrate = (16 * big_output_len) / BIG_BUFFER_FULL_TIME   # assuming data is transported as 2-byte values
+print('approx USB bitrate: %f bits/sec' % approx_usb_bitrate)
+
+
+
+pseudotimescale = INPUT_SAMPLE_PERIOD * np.arange(big_output_len)
+# NOTE - this is ONLY considering the "small t" echo timescale; it DOES NOT account
+# for the down time/delay between the end of an echo window and the next pulse
+# e.g. for a 200usec (0.2ms) echo time and 10ms repetition time, 
+# there is 9.8ms per of time (per repetition) that is "missing" from this scale and plot:
+
+
+# TODO test this - pulse seems like only 2.5V not 5V??? 
+# rescale int16 values to proper voltages:
+voltage_signal = np.fromiter(big_output_buffer, dtype=float)    # TODO see also np.frombuffer - apparently ctypes -> numpy can be problematic.
+voltage_signal = voltage_signal * SCOPE_VOLT_RANGE_CH1 / 65536 + SCOPE_VOLT_OFFSET_CH1
+
+
+print('\n\n')
+print('Scope Ch1 Recorded Stats:')
+print('min voltage: %f (V)' % np.min(voltage_signal))
+print('max voltage: %f (V)' % np.max(voltage_signal))
+
+# plot int16 values against indexes
+#plt.plot(big_output_buffer[:], '.-', label='Ch1 (int16)')    
+
+# plot int16 values against pseudo-time
+#plt.plot(pseudotimescale, big_output_buffer[:], '.-', label='Ch1 (int16)')
+
+# plot proper voltages against indexes
+#plt.plot(voltage_signal, '.-', label='Ch. 1 (V)')
+
+# plot proper voltages against pseudo-time
+plt.plot(pseudotimescale, voltage_signal, '.-', label='Ch. 1 (V)')
+
+plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_ECHO_TIME ))
+
+#plt.xlabel('Index')
+plt.xlabel('Seconds (TR delays not shown!)')
+
+#plt.ylabel('int16 "voltage"')
+plt.ylabel('Volts')
 plt.legend()
+#plt.xlim([0, 1000e-6])
 plt.show()
