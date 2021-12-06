@@ -31,6 +31,14 @@
 
 # TODO - make the trigger appear at the start of the acquisition, not the middle
 #       - TODO maybe some pre-record for scope/pulse sync evaluation...
+#       - TODO what is this? FDwfAnalogInSamplingDelaySet (probably not usefuL?)
+#       - TODO Try this : FDwfAnalogInTriggerPositionInfo
+#       - TODO FDwfAnalogInTriggerPositionSet
+
+# TODO - for multi-pulse excitation pulses, may need this to ignore secondary pulses (within the same excitation wave packet):
+#       - TODO FDwfAnalogInTriggerHoldOff
+#       - FDwfAnalogInTriggerFilterInfo 
+#       - for narrow pulses: FDwfAnalogInTriggerLengthConditionInfo
 
 # TODO - could reshape to M-mode here... since we are capturing exact echo time windows here
 #       and then arbitrarily displaying as A-mode (which is inaccurate anyway - see NOTES above)
@@ -89,6 +97,10 @@ SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
 
 SCOPE_VOLT_RANGE_CH1 = 5.0      # oscilloscope ch1 input range (volts)
 SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not yet implemented (only using for plotting atm.)
+
+SCOPE_VOLT_RANGE_CH2 = 5.0      # ch2 - volts
+SCOPE_VOLT_OFFSET_CH2 = 0.      # ch2 - volts   # TODO not yet implemented (only using for plotting atm.)
+
 # TODO adjust voltage range for smaller echos? (ie. trigger-only channel can be 5V, but is scope more sensitive for echos if we use lower range? Or is this only for post-processing reconstruction of the voltage values?) 
 # ie. does this have any bearing on the int16 values or not???
 
@@ -191,24 +203,35 @@ dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(WAVEGEN_N_ACQUISITIONS)) # repea
 
 
 
+# set up acquisition (scopes)
 # From AnalogIn_Trigger.py
-#set up acquisition
+# TODO do these apply to both channels automatically???
 dwf.FDwfAnalogInFrequencySet(hdwf, c_double(INPUT_SAMPLE_RATE))
 dwf.FDwfAnalogInBufferSizeSet(hdwf, c_int(INPUT_SAMPLE_SIZE))
-dwf.FDwfAnalogInChannelEnableSet(hdwf, c_int(0), c_bool(True))
-# TODO enable channel 2 also? (YES need to enable separately) - look at dualrecord (Leanna)
+
+dwf.FDwfAnalogInChannelEnableSet(hdwf, c_int(0), c_bool(True))  # ch1 
+dwf.FDwfAnalogInChannelEnableSet(hdwf, c_int(1), c_bool(True))  # ch2
+# TODO do we need to disable these at the end? Or does closing the device take care of that?
+
 
 dwf.FDwfAnalogInChannelRangeSet(hdwf, c_int(0), c_double(SCOPE_VOLT_RANGE_CH1))
-# TODO channelrangeset for ch2
+dwf.FDwfAnalogInChannelRangeSet(hdwf, c_int(1), c_double(SCOPE_VOLT_RANGE_CH2))
 # TODO does this matter if using raw 16bit inputs?
 
 
 
+# TODO do we need to call dwf.FDwfAnalogInAcquisitionModeSet(hdwf, acqmodeRecord) ???
+# p. 26 - acqmodeSingle is the default
+
+
+
 #set up trigger
+# TODO are both scope channels started by the same single trigger???
+# TODO can the 'global trigger bus' also use an external trigger (ie. MRI sync) to trigger BOTH the pulse and recording at the same time???
 dwf.FDwfAnalogInTriggerAutoTimeoutSet(hdwf, c_double(0)) #disable auto trigger
 dwf.FDwfAnalogInTriggerSourceSet(hdwf, trigsrcDetectorAnalogIn) #one of the analog in channels
 dwf.FDwfAnalogInTriggerTypeSet(hdwf, trigtypeEdge)
-dwf.FDwfAnalogInTriggerChannelSet(hdwf, c_int(0)) # first channel
+dwf.FDwfAnalogInTriggerChannelSet(hdwf, c_int(0)) # first channel   # TODO set trigger/real acquisition channels to match Leanna's code
 dwf.FDwfAnalogInTriggerLevelSet(hdwf, c_double(SCOPE_TRIGGER_VOLTAGE))
 dwf.FDwfAnalogInTriggerConditionSet(hdwf, DwfTriggerSlopeRise) 
 
@@ -237,9 +260,6 @@ dwf.FDwfAnalogOutConfigure(hdwf, channel, c_bool(True))     # this starts actual
 
 
 # From AnalogIn_Trigger.py:
-
-# TODO copy to main output buffer...
-
 
 
 big_output_pointer = 0  # pointer into big_output_buffer to write full (single) acquisition blocks
