@@ -68,10 +68,13 @@ def print_array(arr, line_len=10):
 
 
 # Pulser Parameters (Wavegen Output #1):
+# This is for a single positive-going rectangular pulse, that is repeated every 'wait time'
+# WAVEGEN_N_ACQUISITIONS sets the number of pulses generated, which also determines the number of acquisitions (and run time)
+
 # User Editable:
-N_ACQUISITIONS = 100;   # number of pulse/echo repetitions to acquire
-wait_time = 0.01;       # seconds between acquisiztions (== TR period)
-pulse_width = 1e-6      # pulse width in seconds (???) TODO CHECK THIS
+WAVEGEN_N_ACQUISITIONS = 100        # number of pulse/echo repetitions to acquire
+WAVEGEN_WAIT_TIME = 0.01            # seconds between acquisiztions (== TR period)
+WAVEGEN_PULSE_WIDTH = 1e-6          # pulse width in seconds (???) TODO CHECK THIS (confirm w/ scope)
 # TODO should pulse width be 1/2 usec?
 
 
@@ -80,12 +83,12 @@ pulse_width = 1e-6      # pulse width in seconds (???) TODO CHECK THIS
 # User Editable:
 # NOTE: AD2 will limit sample rates > 100Mhz without any warning.
 INPUT_SAMPLE_RATE = 10e6      # Hz 
-INPUT_ECHO_TIME = 200e-6        # time to record a single echo (seconds)
-# TODO change to "single acquisition time"
-TRIGGER_VOLTAGE = 1.0           # volts
+INPUT_SINGLE_ACQUISITION_TIME = 200e-6        # time to record a single echo (seconds)
+
+SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
 
 SCOPE_VOLT_RANGE_CH1 = 5.0      # oscilloscope ch1 input range (volts)
-SCOPE_VOLT_OFFSET_CH1 = 0.       # oscilloscope ch1 offset (volts)  # TODO not yet implemented (only using for plotting atm.)
+SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not yet implemented (only using for plotting atm.)
 # TODO adjust voltage range for smaller echos? (ie. trigger-only channel can be 5V, but is scope more sensitive for echos if we use lower range? Or is this only for post-processing reconstruction of the voltage values?) 
 # ie. does this have any bearing on the int16 values or not???
 
@@ -93,22 +96,22 @@ SCOPE_VOLT_OFFSET_CH1 = 0.       # oscilloscope ch1 offset (volts)  # TODO not y
 
 # internal recording parameters:
 # for a single acquisition:
-INPUT_SAMPLE_SIZE = int(INPUT_SAMPLE_RATE * INPUT_ECHO_TIME)     # buffer size for 1 acquisition
+INPUT_SAMPLE_SIZE = int(INPUT_SAMPLE_RATE * INPUT_SINGLE_ACQUISITION_TIME)     # buffer size for 1 acquisition
 INPUT_SAMPLE_PERIOD = 1. / INPUT_SAMPLE_RATE    # seconds per acquired sample
 sts = c_byte()
 
 
 
-big_output_len = int(int(INPUT_SAMPLE_SIZE) * int(N_ACQUISITIONS))
+big_output_len = int(int(INPUT_SAMPLE_SIZE) * int(WAVEGEN_N_ACQUISITIONS))
 big_output_buffer = (c_int16 * big_output_len)()
 #print_array(big_output_buffer, 0)
 
 
 # TODO double check these:
-BIG_BUFFER_FULL_TIME = big_output_len * INPUT_ECHO_TIME     # this does NOT include dead time between repetitions! 
+BIG_BUFFER_FULL_TIME = big_output_len * INPUT_SINGLE_ACQUISITION_TIME     # this does NOT include dead time between repetitions! 
 print('full record time: %f sec' % BIG_BUFFER_FULL_TIME)
 
-total_record_time = N_ACQUISITIONS * wait_time  # just for reference
+total_record_time = WAVEGEN_N_ACQUISITIONS * WAVEGEN_WAIT_TIME  # just for reference
 
 
 if INPUT_SAMPLE_RATE > 100e6:
@@ -117,7 +120,7 @@ if INPUT_SAMPLE_RATE > 100e6:
 
 
 
-print('Acquiring %d periods over %.2f seconds...' %  (N_ACQUISITIONS, total_record_time))
+print('Acquiring %d periods over %.2f seconds...' %  (WAVEGEN_N_ACQUISITIONS, total_record_time))
 
 
 
@@ -171,11 +174,9 @@ dwf.FDwfAnalogOutNodeFrequencySet(hdwf, channel, AnalogOutNodeCarrier, c_double(
 dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, channel, AnalogOutNodeCarrier, c_double(5))
 #dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, channel, AnalogOutNodeCarrier, c_double(-5))    # TODO not clear if negative square amplitude is valid? probalby not..
 dwf.FDwfAnalogOutNodeOffsetSet(hdwf, channel, AnalogOutNodeCarrier, c_double(0))
-dwf.FDwfAnalogOutRunSet(hdwf, channel, c_double(pulse_width)) # pulse length in time (?)
-dwf.FDwfAnalogOutWaitSet(hdwf, channel, c_double(wait_time)) # wait length  10 ms = 100 Hz repetition frequency (TR)
-#dwf.FDwfAnalogOutWaitSet(hdwf, channel, c_double(2e-6)) # wait length
-dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(N_ACQUISITIONS)) # repeat N times
-# TODO count # of pulses (i.e. small number like 10)
+dwf.FDwfAnalogOutRunSet(hdwf, channel, c_double(WAVEGEN_PULSE_WIDTH)) # pulse length in time (?)
+dwf.FDwfAnalogOutWaitSet(hdwf, channel, c_double(WAVEGEN_WAIT_TIME)) # wait length  10 ms = 100 Hz repetition frequency (TR)
+dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(WAVEGEN_N_ACQUISITIONS)) # repeat N times
 # TODO see if square wave can go +/- or only +????
 
 
@@ -208,7 +209,7 @@ dwf.FDwfAnalogInTriggerAutoTimeoutSet(hdwf, c_double(0)) #disable auto trigger
 dwf.FDwfAnalogInTriggerSourceSet(hdwf, trigsrcDetectorAnalogIn) #one of the analog in channels
 dwf.FDwfAnalogInTriggerTypeSet(hdwf, trigtypeEdge)
 dwf.FDwfAnalogInTriggerChannelSet(hdwf, c_int(0)) # first channel
-dwf.FDwfAnalogInTriggerLevelSet(hdwf, c_double(TRIGGER_VOLTAGE))
+dwf.FDwfAnalogInTriggerLevelSet(hdwf, c_double(SCOPE_TRIGGER_VOLTAGE))
 dwf.FDwfAnalogInTriggerConditionSet(hdwf, DwfTriggerSlopeRise) 
 
 
@@ -247,11 +248,11 @@ big_output_stride = INPUT_SAMPLE_SIZE * sizeof(c_int16)
 
 # TODO figure out analogin trigger timeout (see p.34 of docs)
 # TODO change name; itrigger is a vestige of one of the example files
-for iTrigger in range(N_ACQUISITIONS):  # TODO this should be until big_buffer is filled (or N_acquistions)
+for iTrigger in range(WAVEGEN_N_ACQUISITIONS):  # TODO this should be until big_buffer is filled (or N_acquistions)
     # new acquisition is started automatically after done state 
 
     #print('start loop %d' % iTrigger)
-    print('.', end='')
+    #print('.', end='') # print a dot for every acquisition loop (comment out for faster loop)
 
     # busy wait loop for buffer to finish filling for 1 acquisition
     while True:
@@ -274,29 +275,21 @@ for iTrigger in range(N_ACQUISITIONS):  # TODO this should be until big_buffer i
                                  INPUT_SAMPLE_SIZE
                                  )
 
-    # TODO copy to output buffer    (can that be done byreference in the line 168 call???
-    
-    #dc = sum(rgdSamples)/len(rgdSamples)
-    #print("Acquisition #"+str(iTrigger)+" average: "+str(dc)+"V")
-
     big_output_pointer += big_output_stride 
 
 
 print('Number of loops: %d' % iTrigger)
 print('Done...')
 dwf.FDwfAnalogOutConfigure(hdwf, c_int(0), c_bool(False))
+
+
+# TODO are these 2 lines redundant?:
 dwf.FDwfDeviceCloseAll()
-
-
-
-
-
 
 # from AnalogOut_Pulse.py:
 dwf.FDwfDeviceClose(hdwf)
 
 
-#print(big_output_buffer)
 #print_array(big_output_buffer)
 
 
@@ -340,7 +333,7 @@ print('max voltage: %f (V)' % np.max(voltage_signal))
 # plot proper voltages against pseudo-time
 plt.plot(pseudotimescale, voltage_signal, '.-', label='Ch. 1 (V)')
 
-plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_ECHO_TIME ))
+plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (WAVEGEN_N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
 
 #plt.xlabel('Index')
 plt.xlabel('Seconds (TR delays not shown!)')
