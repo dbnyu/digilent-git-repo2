@@ -4,6 +4,21 @@
 - [Basic Specs & Pinout](https://digilent.com/reference/test-and-measurement/analog-discovery-2/specifications)
 - [More Detailed Spec (including buffer sizes per internal instrument)](https://digilent.com/reference/test-and-measurement/analog-discovery-2/start)
 
+
+### Waveforms SDK
+
+#### Python ctypes & underlying C++ Pass-by-Reference
+- uses ```ctypes``` C-oriented datatypes and function calls
+  - TODO how compatible is this with Numpy? Would a ```byref()``` call work w/ a numpy array as the output buffer?
+- All function calls are pass-by-reference (== ctypes ```byref()```).
+  - SDK documentation is not always clear when a scalar value is returned, vs. an array, since all pass-by-reference values are just pointers in the function definitions.
+  - See the C++ ```dwf.h``` file - this has all the function prototypes/definitions, and specifies pass-by-reference array return sizes:
+  - ```.../WaveFormsSDK/inc/dwf.h```
+
+
+
+
+
 ### USB Data Bandwidth & onboard Buffer Size
 
 #### Onboard Memory Buffer
