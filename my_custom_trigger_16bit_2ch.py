@@ -50,152 +50,35 @@
 # TODO - have not tried increasing scope memory w/ AD2 config yet...
 
 
+# TODO - look at Device_Speed.py - this uses AnalogIO Node Status calls:
+# dwf.FDwfAnalogIOChannelNodeStatus(hdwf, 14, 1, byref(t)) # sec to dev
+#       - AnalogIO seems to be lower resolution (time/voltage/RF bandwidth???) more akin to Arduino Analog inputs.
+#       - TODO are these speed status calls valid for Scope USB speed???
+#       - TODO can this be used to get live USB transport speed status???
+
+# TODO - try the 
+
+# TODO - from AnalogIn_Record_Trigger_int16.py:
+#        plt.plot(numpy.fromiter(rgSamples1, dtype = numpy.int16))
+#        fromiter specifying CORRECT originating datatype...
+
+        
+
+
+
 from ctypes import *
 from dwfconstants import *
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import time
+import ad2_tools as ad2       # my library
 
 
 nan = float('nan')  # for initializing variables
 
 # TODO look at AnalogInDigitalIn_Acquisition.py for trigger sync between analog/digital inputs...
 
-def print_array(arr, line_len=10):
-    """print a Ctypes array, with optional line breaks
-    
-        arr = ctypes array
-        line_len = print a newline after this many entries; 
-                    set to zero or None to print 1 line
-    """
-    for i in range(len(arr)):
-        print(str(arr[i]) + ',', end='')
-
-        if line_len > 0  and (i+1) % line_len == 0: # i+1 because of zero based index?
-            print()
-
-
-
-#def int16signal2voltage(data_int16, v_range, v_offset):
-#    """Convert raw oscilloscope 16-bit int data back to proper voltages.
-#
-#        data_int16 = ctypes c_int16 array of samples (from one channel)
-#        v_range = scope voltage range setting (float, volts)
-#        v_offset = scope voltage offset setting (float, volts)
-#
-#        See Digilent Waveforms SDK documentation for FDwfAnalogInStatusData16 (page 21)
-#
-#        Returns a Numpy array of floats
-#    """
-#    # TODO - specify 32-bit or 64-bit floats for output? 64bit may be unnecessary if our range of values is only int16...
-#    # TODO test this - pulse seems like only 2.5V not 5V??? 
-#
-#    # TODO maybe assuming v_offset = 0 is wrong - get it from the device!
-#    # TODO 65536 is the range for an UNSIGNED int - so maybe we do need to offest to get proper +/- 5V (assuming that's the signal)
-#
-#    # TODO see also np.frombuffer - apparently ctypes -> numpy can be problematic.
-#    voltage_signal = np.fromiter(acquisition_data_ch1, dtype=float)
-#    voltage_signal = voltage_signal * v_range / 65536 + v_offset
-#    return voltage_signal
-
-
-def int16signal2voltage(hdwf, channel, data_int16):
-    """Convert raw oscilloscope 16-bit int data back to proper voltages.
-
-        hdwf = DWF object
-        channel = 0 or 1; which channel is the data from? (to get the right range/offset)
-                    This can be a regular Python int, ctypes not needed.
-        data_int16 = ctypes c_int16 array of raw oscilloscope data
-
-        Returns numpy array of floats/doubles.
-    """
-    v_range = c_double(nan)
-    v_offset = c_double(nan)
-
-    dwf.FDwfAnalogInChannelRangeGet(hdwf,  c_int(channel), byref(v_range))
-    dwf.FDwfAnalogInChannelOffsetGet(hdwf, c_int(channel), byref(v_offset))
-
-    print('int16 conversion range, offset: %f, %f (both volts)' % (v_range.value, v_offset.value))
-
-    voltage_signal = np.fromiter(acquisition_data_ch1, dtype=float)
-    voltage_signal = (voltage_signal * v_range.value / 65536) + v_offset.value
-    return voltage_signal 
-
-
-def print_scope_capabilities():
-    """Print static info on the scope (ie. min/max possible voltage range)
-        Things that are fixed in the hardware and not changeable at runtime.
-
-        see also print_scope_settings() for querying changeable settings.
-    """
-    min_voltage_range = c_double()
-    max_voltage_range = c_double()
-    steps_voltage_range = c_double()
-    
-    dwf.FDwfAnalogInChannelRangeInfo(hdwf,
-                                     byref(min_voltage_range),
-                                     byref(max_voltage_range),
-                                     byref(steps_voltage_range),
-                                     )
-    print('Scope Voltage Range Info:')
-    print('min: %f' % min_voltage_range.value) 
-    print('max: %f' % max_voltage_range.value)
-    print('steps: %f' % steps_voltage_range.value)
-    
-    
-    
-    # Print out some info on the scope range/offset:
-    min_voltage_offset = c_double()
-    max_voltage_offset = c_double()
-    steps_voltage_offset = c_double()
-    
-    dwf.FDwfAnalogInChannelOffsetInfo(hdwf, 
-                                      byref(min_voltage_offset),
-                                      byref(max_voltage_offset),
-                                      byref(steps_voltage_offset)
-                                      )
-
-    print('Scope Voltage Offset Info:')
-    print('min: %f' % min_voltage_offset.value) 
-    print('max: %f' % max_voltage_offset.value)
-    print('steps: %f' % steps_voltage_offset.value)
-
-
-def print_scope_settings():
-    """Access and print basic scope settings (User-changeable ones):
-
-        For all channels:
-            voltage range
-            voltage offset
-
-        See print_scope_capabilities for static variables.
-    """
-
-    # TODO is this working? getting all zeros for range/offset (range should be 5-25)
-
-    ch1_current_v_range = c_double(float('nan'))
-    ch2_current_v_range = c_double(float('nan'))
-    
-    ch1_current_v_offset = c_double(float('nan'))
-    ch2_current_v_offset = c_double(float('nan'))
-    
-    
-    dwf.FDwfAnalogInChannelRangeGet(hdwf, c_int(0), byref(ch1_current_v_range))
-    dwf.FDwfAnalogInChannelRangeGet(hdwf, c_int(1), byref(ch2_current_v_range))
-    
-    dwf.FDwfAnalogInChannelOffsetGet(hdwf, c_int(0), byref(ch1_current_v_offset))
-    dwf.FDwfAnalogInChannelOffsetGet(hdwf, c_int(1), byref(ch2_current_v_offset))
-    print('Ch.1 v range, offset: %f, %f' % (ch1_current_v_range.value, ch1_current_v_offset.value))
-    print('Ch.2 v range, offset: %f, %f' % (ch2_current_v_range.value, ch2_current_v_offset.value))
-
-    
-    ch1_attenuation = c_double(float('nan'))
-    ch2_attenuation = c_double(float('nan'))
-
-    dwf.FDwfAnalogInChannelAttenuationGet(hdwf, c_int(0), byref(ch1_attenuation))
-    dwf.FDwfAnalogInChannelAttenuationGet(hdwf, c_int(1), byref(ch2_attenuation))
-    print('Ch.1, Ch.2 Attenuation: %f, %f' % (ch1_attenuation.value, ch2_attenuation.value))
 
 
 
@@ -205,10 +88,11 @@ def print_scope_settings():
 
 # User Editable:
 WAVEGEN_N_ACQUISITIONS = 100        # number of pulse/echo repetitions to acquire
-WAVEGEN_WAIT_TIME = 0.01            # seconds between acquisiztions (== TR period)
+WAVEGEN_WAIT_TIME = 0.01            # seconds between acquisiztions (== TR period, also serves as trigger/acquisition interval)
 WAVEGEN_PULSE_WIDTH = 1e-6          # pulse width in seconds (???) TODO CHECK THIS (confirm w/ scope)
 # TODO should pulse width be 1/2 usec?
-
+WAVEGEN_PULSE_AMPLITUDE = 5.0       # voltage for pulse
+WAVEGEN_PULSE_V_OFFSET  = 0.        # voltage offset for pulse
 
 # Recording Parameters:
 # From AnalogIn_Trigger.py
@@ -219,10 +103,10 @@ INPUT_SINGLE_ACQUISITION_TIME = 200e-6        # time to record a single echo (se
 
 SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
 
-SCOPE_VOLT_RANGE_CH1 = 25.0      # oscilloscope ch1 input range (volts)
+SCOPE_VOLT_RANGE_CH1 = 5.0      # oscilloscope ch1 input range (volts)
 SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not yet implemented (only using for plotting atm.)
 
-SCOPE_VOLT_RANGE_CH2 = 25.0      # ch2 - volts
+SCOPE_VOLT_RANGE_CH2 = 5.0      # ch2 - volts
 SCOPE_VOLT_OFFSET_CH2 = 0.      # ch2 - volts   # TODO not yet implemented (only using for plotting atm.)
 
 # TODO adjust voltage range for smaller echos? (ie. trigger-only channel can be 5V, but is scope more sensitive for echos if we use lower range? Or is this only for post-processing reconstruction of the voltage values?) 
@@ -272,13 +156,13 @@ if INPUT_SAMPLE_RATE > 100e6:
 print('Acquiring %d periods over %.2f seconds...' %  (WAVEGEN_N_ACQUISITIONS, total_record_time))
 
 
-
-if sys.platform.startswith("win"):
-    dwf = cdll.dwf
-elif sys.platform.startswith("darwin"):
-    dwf = cdll.LoadLibrary("/Library/Frameworks/dwf.framework/dwf")
-else:
-    dwf = cdll.LoadLibrary("libdwf.so")
+dwf = ad2.load_dwf()
+#if sys.platform.startswith("win"):
+#    dwf = cdll.dwf
+#elif sys.platform.startswith("darwin"):
+#    dwf = cdll.LoadLibrary("/Library/Frameworks/dwf.framework/dwf")
+#else:
+#    dwf = cdll.LoadLibrary("libdwf.so")
 
 hdwf = c_int()
 channel = c_int(0)  # wavegen channel #1
@@ -303,17 +187,20 @@ if hdwf.value == hdwfNone.value:
     print("failed to open device\n"+str(szError.value))
     quit()
 
+print('testing my error function:')
+print(ad2.get_error(dwf) + '\n')
+
 # the device will be configured only when calling FDwfAnalogOutConfigure
 dwf.FDwfDeviceAutoConfigureSet(hdwf, c_int(0))
 
 
 print('\n\n')
 
-print_scope_capabilities()
+ad2.print_scope_capabilities(dwf, hdwf)
 print()
 
 print('User-Editable Settings (BEFORE):')
-print_scope_settings()
+ad2.print_scope_settings(dwf, hdwf)
 
 
 # Wavegen Output
@@ -326,9 +213,9 @@ dwf.FDwfAnalogOutNodeEnableSet(hdwf, channel, AnalogOutNodeCarrier, c_bool(True)
 dwf.FDwfAnalogOutIdleSet(hdwf, channel, DwfAnalogOutIdleOffset)
 dwf.FDwfAnalogOutNodeFunctionSet(hdwf, channel, AnalogOutNodeCarrier, funcSquare)
 dwf.FDwfAnalogOutNodeFrequencySet(hdwf, channel, AnalogOutNodeCarrier, c_double(0)) # low frequency
-dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, channel, AnalogOutNodeCarrier, c_double(5))
+dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, channel, AnalogOutNodeCarrier, c_double(WAVEGEN_PULSE_AMPLITUDE))
 #dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, channel, AnalogOutNodeCarrier, c_double(-5))    # TODO not clear if negative square amplitude is valid? probalby not..
-dwf.FDwfAnalogOutNodeOffsetSet(hdwf, channel, AnalogOutNodeCarrier, c_double(0))
+dwf.FDwfAnalogOutNodeOffsetSet(hdwf, channel, AnalogOutNodeCarrier, c_double(WAVEGEN_PULSE_V_OFFSET))
 dwf.FDwfAnalogOutRunSet(hdwf, channel, c_double(WAVEGEN_PULSE_WIDTH)) # pulse length in time (?)
 dwf.FDwfAnalogOutWaitSet(hdwf, channel, c_double(WAVEGEN_WAIT_TIME)) # wait length  10 ms = 100 Hz repetition frequency (TR)
 dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(WAVEGEN_N_ACQUISITIONS)) # repeat N times
@@ -390,7 +277,7 @@ dwf.FDwfAnalogInTriggerConditionSet(hdwf, DwfTriggerSlopeRise)
 
 
 print('\nScope Settings (AFTER setup):')
-print_scope_settings()
+ad2.print_scope_settings(dwf, hdwf)
 
 
 print('\n')
@@ -399,6 +286,9 @@ print('\n')
 print("Starting repeated acquisitions")
 dwf.FDwfAnalogInConfigure(hdwf, c_bool(False), c_bool(True))    # This starts the actual acquisition
 
+
+print('\nScope Settings (AFTER configure):')
+ad2.print_scope_settings(dwf, hdwf)
 
 print("Generating pulses")
 dwf.FDwfAnalogOutConfigure(hdwf, channel, c_bool(True))     # this starts actual pulse output
@@ -474,7 +364,10 @@ for iTrigger in range(WAVEGEN_N_ACQUISITIONS):  # TODO this should be until big_
 print('Number of loops: %d' % iTrigger)
 print('Done...')
 dwf.FDwfAnalogOutConfigure(hdwf, c_int(0), c_bool(False))
+# TODO close the scope too?
 
+voltage_ch1 = ad2.int16signal2voltage(dwf, hdwf, 0, acquisition_data_ch1)
+voltage_ch2 = ad2.int16signal2voltage(dwf, hdwf, 1, acquisition_data_ch2)
 
 # TODO are these 2 lines redundant?:
 dwf.FDwfDeviceCloseAll()
@@ -502,14 +395,30 @@ pseudotimescale = INPUT_SAMPLE_PERIOD * np.arange(big_output_len)
 # e.g. for a 200usec (0.2ms) echo time and 10ms repetition time, 
 # there is 9.8ms per of time (per repetition) that is "missing" from this scale and plot:
 
+# TEMP DELETE THIS TODO
+# plot int16 values against pseudo-time
+#plt.plot(pseudotimescale, acquisition_data_ch1[:], '.-', label='Ch1 (int16)')
+#plt.plot(pseudotimescale, acquisition_data_ch2[:], '.-', label='Ch2 (int16)')
+#plt.xlabel('Index')
+#plt.ylabel('int16 "voltage"')
+#plt.legend()
+#plt.show()
+#sys.exit()
+
 
 # rescale raw int16 signals to proper voltages (float type):
 #voltage_ch1 = int16signal2voltage(acquisition_data_ch1, SCOPE_VOLT_RANGE_CH1, SCOPE_VOLT_OFFSET_CH1);
 #voltage_ch2 = int16signal2voltage(acquisition_data_ch2, SCOPE_VOLT_RANGE_CH2, SCOPE_VOLT_OFFSET_CH2);
 # TODO test this - pulse seems like only 2.5V not 5V??? 
 
-voltage_ch1 = int16signal2voltage(hdwf, 0, acquisition_data_ch1)
-voltage_ch2 = int16signal2voltage(hdwf, 1, acquisition_data_ch2)
+# NOTE - if calling voltage range/offset, need to do this BEFORE closing the hdwf device!!!
+#voltage_ch1 = ad2.int16signal2voltage(dwf, hdwf, 0, acquisition_data_ch1, v_range=5, v_offset=0)
+#voltage_ch2 = ad2.int16signal2voltage(dwf, hdwf, 1, acquisition_data_ch2, v_range=5, v_offset=0)
+
+# moved to library:
+#voltage_ch1 = int16signal2voltage(hdwf, 0, acquisition_data_ch1)
+#voltage_ch2 = int16signal2voltage(hdwf, 1, acquisition_data_ch2)
+
 
 
 
@@ -573,6 +482,8 @@ plt.legend()
 plt.show()
 
 
+
+
 #################
 # Plot error:
 plt.plot(difference, '.-', label='Ch2 - Ch1')
@@ -601,4 +512,3 @@ plt.legend()
 plt.xlabel('pseudotime')
 plt.ylabel('Volts')
 plt.show()
-
