@@ -14,3 +14,7 @@
 #### USB Limitations
 - [USB 2.0 limitations](https://forum.digilentinc.com/topic/18757-digilent-analog-discovery-2-record-mode-limiation/)
   - "The 480MHz is the USB 2.0 frequency, which uses some of this for sync and other usb protocol transfers, control... The maximum USB bulk IN bandwidth is about **40MBps, 370Mbps** for large data transfers. In the AD2 the bandwidth is **shared between various instruments**, so the **record is performed in small chunks which reduces the rate to about 1-2MHz**" (Attila - Digilent Engineer)
+
+### AD2 Oscilloscope Voltage Range & int16 conversion
+- https://forum.digilentinc.com/topic/20354-adc-bits-and-resolution/#comment-57297
+- https://forum.digilentinc.com/topic/2340-how-to-switch-between-low-and-high-gain-on-inputs/
