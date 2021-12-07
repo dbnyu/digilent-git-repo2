@@ -1,11 +1,18 @@
 # Analog Discovery 2 Ultrasound Project
 
+## Helper Functions
+- see [ad2_tools.py](ad2_tools.py) for some wrapper/ helper functions for the Waveforms SDK (dwf) and ctypes variables
+  - converting int16 -> double values
+  - printing AD2 settings & errors
+  - printing ctypes arrays
+
 ## Digilent Analog Discovery 2 Specs
 - [Basic Specs & Pinout](https://digilent.com/reference/test-and-measurement/analog-discovery-2/specifications)
 - [More Detailed Spec (including buffer sizes per internal instrument)](https://digilent.com/reference/test-and-measurement/analog-discovery-2/start)
 
 
 ### Waveforms SDK
+[Online HTML Manual](https://digilent.com/reference/software/waveforms/waveforms-sdk/reference-manual) - may be more stable than the PDF file...
 
 #### Python ctypes & underlying C++ Pass-by-Reference
 - [ctypes documentation](https://docs.python.org/3/library/ctypes.html)
@@ -35,6 +42,7 @@
 - the max buffer size for a single channel is 16k *samples*
   - scope & wavegen are 14-bit, but assuming data is stored/transported in full 2-Byte containers (TODO - TBD)
   - so 1 full buffer is 16k samples * 16 bits = 256,000 bits
+- https://forum.digilentinc.com/topic/9171-is-there-an-sdk-interface-for-the-digitalin-voltage-thresholds/
 
 #### USB Limitations
 - [USB 2.0 limitations](https://forum.digilentinc.com/topic/18757-digilent-analog-discovery-2-record-mode-limiation/)
