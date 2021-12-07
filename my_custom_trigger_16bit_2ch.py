@@ -103,10 +103,10 @@ INPUT_SINGLE_ACQUISITION_TIME = 200e-6        # time to record a single echo (se
 
 SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
 
-SCOPE_VOLT_RANGE_CH1 = 5.0      # oscilloscope ch1 input range (volts)
+SCOPE_VOLT_RANGE_CH1 = 50.0      # oscilloscope ch1 input range (volts)
 SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not yet implemented (only using for plotting atm.)
 
-SCOPE_VOLT_RANGE_CH2 = 5.0      # ch2 - volts
+SCOPE_VOLT_RANGE_CH2 = 50.0      # ch2 - volts
 SCOPE_VOLT_OFFSET_CH2 = 0.      # ch2 - volts   # TODO not yet implemented (only using for plotting atm.)
 
 # TODO adjust voltage range for smaller echos? (ie. trigger-only channel can be 5V, but is scope more sensitive for echos if we use lower range? Or is this only for post-processing reconstruction of the voltage values?) 
@@ -134,8 +134,8 @@ acquisition_data_ch1 = (c_int16 * big_output_len)()    # channel 1 main acquisit
 acquisition_data_ch2 = (c_int16 * big_output_len)()    # channel 2 main acquisition buffer (over full recording time)
 
 # troubleshooting: record double-formatted data too to check voltage computation:
-double_data_ch1 = (c_double * big_output_len)()    # channel 1
-double_data_ch2 = (c_double * big_output_len)()    # channel 2
+#double_data_ch1 = (c_double * big_output_len)()    # channel 1
+#double_data_ch2 = (c_double * big_output_len)()    # channel 2
 
 #print_array(big_output_buffer, 0)
 
@@ -354,8 +354,8 @@ for iTrigger in range(WAVEGEN_N_ACQUISITIONS):  # TODO this should be until big_
     # TODO could print ch2. status just to see if it's also complete or not... (since we're not actively checking it yet)
 
     # troubleshooting (compare SDK voltage values to my computed voltages)
-    dwf.FDwfAnalogInStatusData(hdwf, c_int(0), byref(double_data_ch1, double_ptr), INPUT_SAMPLE_SIZE)
-    dwf.FDwfAnalogInStatusData(hdwf, c_int(1), byref(double_data_ch2, double_ptr), INPUT_SAMPLE_SIZE)
+    #dwf.FDwfAnalogInStatusData(hdwf, c_int(0), byref(double_data_ch1, double_ptr), INPUT_SAMPLE_SIZE)
+    #dwf.FDwfAnalogInStatusData(hdwf, c_int(1), byref(double_data_ch2, double_ptr), INPUT_SAMPLE_SIZE)
 
     acquisition_data_index += acquisition_data_stride 
     double_ptr += double_stride
@@ -366,6 +366,13 @@ print('Done...')
 dwf.FDwfAnalogOutConfigure(hdwf, c_int(0), c_bool(False))
 # TODO close the scope too?
 
+
+print('int16 ch1 min: %d' % min(acquisition_data_ch1))
+print('int16 ch1 max: %d' % max(acquisition_data_ch1))
+
+
+# need to do this BEFORE closing the scope because the scope range/offset calls are required
+# TODO could just store those & use later...
 voltage_ch1 = ad2.int16signal2voltage(dwf, hdwf, 0, acquisition_data_ch1)
 voltage_ch2 = ad2.int16signal2voltage(dwf, hdwf, 1, acquisition_data_ch2)
 
@@ -498,17 +505,15 @@ plt.show()
 
 
 #################
-# Troubleshooting voltage values:
-
-err_ratio = np.divide(double_data_ch1, voltage_ch1)
-
-
-
-plt.plot(pseudotimescale, voltage_ch1, '.-', label='int16 ch1')
-plt.plot(pseudotimescale, double_data_ch1, '.-', label='double ch1')
-plt.plot(pseudotimescale, err_ratio, '.-', label='err ratio')
-plt.title('int16 voltage conversion vs. builtin double values')
-plt.legend()
-plt.xlabel('pseudotime')
-plt.ylabel('Volts')
-plt.show()
+## Troubleshooting voltage values:
+#
+#err_ratio = np.divide(double_data_ch1, voltage_ch1)
+#
+#plt.plot(pseudotimescale, voltage_ch1, '.-', label='int16 ch1')
+#plt.plot(pseudotimescale, double_data_ch1, '.-', label='double ch1')
+#plt.plot(pseudotimescale, err_ratio, '.-', label='err ratio')
+#plt.title('int16 voltage conversion vs. builtin double values')
+#plt.legend()
+#plt.xlabel('pseudotime')
+#plt.ylabel('Volts')
+#plt.show()
