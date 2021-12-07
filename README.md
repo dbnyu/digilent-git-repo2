@@ -8,6 +8,10 @@
 ### Waveforms SDK
 
 #### Python ctypes & underlying C++ Pass-by-Reference
+- [ctypes documentation](https://docs.python.org/3/library/ctypes.html)
+  - [ctypes arrays & implicit creation](https://docs.python.org/3/library/ctypes.html#ctypes.Array)
+    - "The recommended way to create concrete array types is by multiplying any ctypes data type with a positive integer." - this explains the confusing ```my_array = (c_double * 100)()``` syntax - it's an implicit ```ctypes``` Array constructor.
+    - python ```len()``` should work; can also call the ```._length_``` and ```._type_``` fields for info.
 - uses ```ctypes``` C-oriented datatypes and function calls
   - TODO how compatible is this with Numpy? Would a ```byref()``` call work w/ a numpy array as the output buffer?
 - All function calls are pass-by-reference (== ctypes ```byref()```).
@@ -15,7 +19,13 @@
   - See the C++ ```dwf.h``` file - this has all the function prototypes/definitions, and specifies pass-by-reference array return sizes:
   - ```.../WaveFormsSDK/inc/dwf.h```
 
-
+#### ctypes and Numpy arrays, file saving, etc.
+- Much more convenient to do math & load/save files with Numpy arrays.
+- Converting a ctypes buffer to Numpy needs to be handled carefully.
+  - [Creating NumPy arrays from a ctypes pointer object is a problematic operation...](https://stackoverflow.com/questions/4355524/getting-data-from-ctypes-array-into-numpy)
+- Digilent examples seem to use ```np.fromiter()```, but ```np.frombuffer()``` is also an options
+  - seems that ```np.frombuffer()``` reads the same raw memory (RAM) as the original ctypes array
+  - [frombuffer vs. fromstring](https://stackoverflow.com/questions/22236749/numpy-what-is-the-difference-between-frombuffer-and-fromstring) - ```np.fromstring()``` will make a copy in memory (e.g. 2x memory usage)
 
 
 
