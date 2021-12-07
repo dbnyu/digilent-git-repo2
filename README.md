@@ -10,6 +10,11 @@
 - [Basic Specs & Pinout](https://digilent.com/reference/test-and-measurement/analog-discovery-2/specifications)
 - [More Detailed Spec (including buffer sizes per internal instrument)](https://digilent.com/reference/test-and-measurement/analog-discovery-2/start)
 
+### Bugs
+- Make sure acquistion PC/laptop is *PLUGGED INTO POWER* during data acquisitions
+  - Possible that some Windows/OS power-save functions reduce or disable USB communication when a laptop is on battery power (Dell Win10 laptop for example)
+- **Use 50V as scope range** (even for a 5V signal). Apparently the AD2 only has 2 settings, 5 volts and 50 volts PEAK TO PEAK. So the 5V setting only allows +/-2.5V per this thread:
+  - [2.7 Voltage cap on mesurements](https://forum.digilentinc.com/topic/20423-27-voltage-cap-on-mesurements/#comment-57671)
 
 ### Waveforms SDK
 [Online HTML Manual](https://digilent.com/reference/software/waveforms/waveforms-sdk/reference-manual) - may be more stable than the PDF file...
