@@ -82,6 +82,51 @@ import ad2_tools as ad2       # my library
 
 
 
+
+
+# Adding temp save data from custom1MHzWave_record_twochannel_16bit.py:
+
+import datetime
+import os
+import csv
+areaname = "inUSgel_lgBUF_4milSample_lessarr"
+#folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\testdoublerecord"
+folderPath = '2021-12-08-phantomTests'
+
+def saveData(myWave1, myWave2):
+    """ from custom1MHzWave_record_twochannel_16bit.py"""
+
+    print('savingData')
+    currentTime = datetime.datetime.now().strftime("%Y%m%d-%Hh%Mm%Ss")
+
+    data_filename = folderPath +'\\' + areaname + '_' + currentTime +'.csv' 
+    flag_filename = folderPath +'\\' + areaname + '_' + currentTime +'_flags.txt' 
+    available_filename = folderPath +'\\' + areaname + '_' + currentTime +'_available.txt' 
+
+    with open(data_filename, 'w', newline='') as wave_file:
+        wave_writer = csv.writer(wave_file, delimiter = ',')
+        index = 0
+        for x in myWave1:
+
+            #wave_writer.writerow([index,(index*inputSamplePeriod),x,myWave2[index]])
+            wave_writer.writerow([index,(index*INPUT_SAMPLE_PERIOD ),x,myWave2[index]])
+            index = index + 1
+            if(index%1000==0):
+                print('.',end='')
+    print('\nfile written at' + data_filename)
+
+    #with open(flag_filename,'w',newline='') as flag_file:
+    #    flag_file.write('flag corrupted:{}, numCorrupted: {}\n'.format(fCorrupted,numCorrupted))
+    #    flag_file.write('flag lost: {}, numLost: {}'.format(fLost, numLost))
+    #print('\nfile written at' + flag_filename)
+
+    #with open(available_filename,'w',newline='') as available_file:
+    #    for i in range(0,len(numAvailable)):
+    #        available_file.write('{},{}\n'.format(numAvailable[i],arraynumcorrupted[i]))
+    #print('\nfile written at' + available_filename)
+
+
+
 # Pulser Parameters (Wavegen Output #1):
 # This is for a single positive-going rectangular pulse, that is repeated every 'wait time'
 # WAVEGEN_N_ACQUISITIONS sets the number of pulses generated, which also determines the number of acquisitions (and run time)
@@ -512,6 +557,9 @@ plt.show()
 ad2.bland_altman(voltage_ch1, voltage_ch2)
 
 
+# saving 16bit data: 
+print('Saving raw int16 data...')
+saveData(acquisition_data_ch1, acquisition_data_ch2)
 
 #################
 ## Troubleshooting voltage values:
