@@ -15,6 +15,8 @@
   - Possible that some Windows/OS power-save functions reduce or disable USB communication when a laptop is on battery power (Dell Win10 laptop for example)
 - **Use 50V as scope range** (even for a 5V signal). Apparently the AD2 only has 2 settings, 5 volts and 50 volts PEAK TO PEAK. So the 5V setting only allows +/-2.5V per this thread:
   - [2.7 Voltage cap on mesurements](https://forum.digilentinc.com/topic/20423-27-voltage-cap-on-mesurements/#comment-57671)
+  - *HOWEVER* the 5V setting may be better for echo-only readouts; the 50V setting appears to have some discretization error for small signals (mV - 1V range).
+  - Ultimately we only need the 5V pulse as a trigger; we don't necessarily care abouthe pulse otherwise, except if analyzing the pulse itself
 
 ### Waveforms SDK
 [Online HTML Manual](https://digilent.com/reference/software/waveforms/waveforms-sdk/reference-manual) - may be more stable than the PDF file...
@@ -39,6 +41,15 @@
   - seems that ```np.frombuffer()``` reads the same raw memory (RAM) as the original ctypes array
   - [frombuffer vs. fromstring](https://stackoverflow.com/questions/22236749/numpy-what-is-the-difference-between-frombuffer-and-fromstring) - ```np.fromstring()``` will make a copy in memory (e.g. 2x memory usage)
 
+### AD2 Oscilloscope Input Settings
+
+#### AD2 Oscilloscope Voltage Range & int16 conversion
+- https://forum.digilentinc.com/topic/20354-adc-bits-and-resolution/#comment-57297
+- https://forum.digilentinc.com/topic/2340-how-to-switch-between-low-and-high-gain-on-inputs/
+
+#### Triggers
+- Trigger position (timing, positin within the acquisition time window): 
+  - https://forum.digilentinc.com/topic/9555-buffer-explanation/#comment-29893
 
 
 ### USB Data Bandwidth & onboard Buffer Size
@@ -53,6 +64,3 @@
 - [USB 2.0 limitations](https://forum.digilentinc.com/topic/18757-digilent-analog-discovery-2-record-mode-limiation/)
   - "The 480MHz is the USB 2.0 frequency, which uses some of this for sync and other usb protocol transfers, control... The maximum USB bulk IN bandwidth is about **40MBps, 370Mbps** for large data transfers. In the AD2 the bandwidth is **shared between various instruments**, so the **record is performed in small chunks which reduces the rate to about 1-2MHz**" (Attila - Digilent Engineer)
 
-### AD2 Oscilloscope Voltage Range & int16 conversion
-- https://forum.digilentinc.com/topic/20354-adc-bits-and-resolution/#comment-57297
-- https://forum.digilentinc.com/topic/2340-how-to-switch-between-low-and-high-gain-on-inputs/
