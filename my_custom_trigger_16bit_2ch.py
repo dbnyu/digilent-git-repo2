@@ -17,6 +17,9 @@
             - e.g. for a 200usec (0.2ms) echo time and 10ms repetition time, 
               there is 9.8ms per of downtime (per repetition) that is "missing" from this recorded data
               (and therefore the pseudo-A-mode plots as well).
+        - scope input range must be set to 50V (Fifty = 5E1 = 10x5V, yes that's correct)
+            in order to get the 5V signal (because the input range is PEAK TO PEAK, so 
+            the 5V range only gives +/-2.5 volt output range.
 
     Using AnalogOut_Pulse.py
     and
@@ -25,9 +28,6 @@
     Doug Brantner 12/2/2021
 """
 
-# TODO - check voltage conversion - only showing 2.5V on plots here, but should be 5V
-#        - also shows up as 5V on external (Doug's Rigol) scope (with 1x probe attenuation setting & direct coax input)
-#           (the pulse is 0-5V on external scope, which should be correct)
 
 # TODO - make the trigger appear at the start of the acquisition, not the middle
 #       - TODO maybe some pre-record for scope/pulse sync evaluation...
@@ -75,7 +75,7 @@ import time
 import ad2_tools as ad2       # my library
 
 
-nan = float('nan')  # for initializing variables
+#nan = float('nan')  # for initializing variables
 
 # TODO look at AnalogInDigitalIn_Acquisition.py for trigger sync between analog/digital inputs...
 
@@ -85,9 +85,8 @@ nan = float('nan')  # for initializing variables
 # Pulser Parameters (Wavegen Output #1):
 # This is for a single positive-going rectangular pulse, that is repeated every 'wait time'
 # WAVEGEN_N_ACQUISITIONS sets the number of pulses generated, which also determines the number of acquisitions (and run time)
-
 # User Editable:
-WAVEGEN_N_ACQUISITIONS = 100        # number of pulse/echo repetitions to acquire
+WAVEGEN_N_ACQUISITIONS = 10        # number of pulse/echo repetitions to acquire
 WAVEGEN_WAIT_TIME = 0.01            # seconds between acquisiztions (== TR period, also serves as trigger/acquisition interval)
 WAVEGEN_PULSE_WIDTH = 1e-6          # pulse width in seconds (???) TODO CHECK THIS (confirm w/ scope)
 # TODO should pulse width be 1/2 usec?
@@ -100,13 +99,20 @@ WAVEGEN_PULSE_V_OFFSET  = 0.        # voltage offset for pulse
 # NOTE: AD2 will limit sample rates > 100Mhz without any warning.
 INPUT_SAMPLE_RATE = 10e6      # Hz 
 INPUT_SINGLE_ACQUISITION_TIME = 200e-6        # time to record a single echo (seconds)
+INPUT_TRIGGER_POSITION_TIME = 0.99 * 0.5 * INPUT_SINGLE_ACQUISITION_TIME  # seconds, trigger position within the acquisition window; default is center (t=0) which wastes 1/2 the buffer
+#       0.5 * acq_time = move trigger to beginning of acquisition window 
+#               - so that trigger instant is the first sample
+#       0.99 * above = allow 1usec of dead time "pre-roll" before trigger
+#               - so that we can see 1 pulse period of "intentional nothing" before trigger/pulse
+#                   so we can be sure the triggers are perfectly in sync (ie. ensure we capture the correct rising edge)
+#               - 0.99 assumes 200usec window so that 1/2 is 100usec and 99% of 100 == 99usec, so there is 1usec of dead pre-roll time in the beginning.
 
 SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
 
 SCOPE_VOLT_RANGE_CH1 = 50.0      # oscilloscope ch1 input range (volts)
 SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not yet implemented (only using for plotting atm.)
 
-SCOPE_VOLT_RANGE_CH2 = 50.0      # ch2 - volts
+SCOPE_VOLT_RANGE_CH2 = 5.0      # ch2 - volts
 SCOPE_VOLT_OFFSET_CH2 = 0.      # ch2 - volts   # TODO not yet implemented (only using for plotting atm.)
 
 # TODO adjust voltage range for smaller echos? (ie. trigger-only channel can be 5V, but is scope more sensitive for echos if we use lower range? Or is this only for post-processing reconstruction of the voltage values?) 
@@ -257,7 +263,7 @@ dwf.FDwfAnalogInChannelRangeSet(hdwf, c_int(1), c_double(SCOPE_VOLT_RANGE_CH2))
 
 
 #set up trigger
-# TODO are both scope channels started by the same single trigger???
+# DONE are both scope channels started by the same single trigger??? YES
 # TODO can the 'global trigger bus' also use an external trigger (ie. MRI sync) to trigger BOTH the pulse and recording at the same time???
 dwf.FDwfAnalogInTriggerAutoTimeoutSet(hdwf, c_double(0)) #disable auto trigger
 dwf.FDwfAnalogInTriggerSourceSet(hdwf, trigsrcDetectorAnalogIn) #one of the analog in channels
@@ -265,7 +271,7 @@ dwf.FDwfAnalogInTriggerTypeSet(hdwf, trigtypeEdge)
 dwf.FDwfAnalogInTriggerChannelSet(hdwf, c_int(0)) # first channel   # TODO set trigger/real acquisition channels to match Leanna's code
 dwf.FDwfAnalogInTriggerLevelSet(hdwf, c_double(SCOPE_TRIGGER_VOLTAGE))
 dwf.FDwfAnalogInTriggerConditionSet(hdwf, DwfTriggerSlopeRise) 
-
+dwf.FDwfAnalogInTriggerPositionSet(hdwf, c_double(INPUT_TRIGGER_POSITION_TIME)) 
 
 # TODO use ch2 trigger for ch1 AND ch2 acquisition
 # TODO eventuallly if it's consistent/trustworth, maybe can ignore ch2 acquisition...
@@ -501,6 +507,9 @@ plt.legend()
 plt.show()
 
 
+#################
+# Bland-Altman of ch1 vs. ch2
+ad2.bland_altman(voltage_ch1, voltage_ch2)
 
 
 
