@@ -306,6 +306,67 @@ def print_array(arr, line_len=10):
 
 
 
+### Convert to M-Mode
+
+def reshape_to_M_mode(us_data, tr_len, firstpeak):
+    """Reshape 1-D signal array to M-mode matrix.
+
+        us_data = 1D Numpy array of A-mode (voltage) signals
+        tr_len  = number of samples (int) for 1 pulse/echo acquisition period
+        firstpeak = index into us_data to use as first M-mode data point
+                    e.g. the first peak of the excitation or sync pulse
+
+                    Data before this is thrown away, and then as many integer
+                    multiples of tr_len are taken, and any partial/trailing data
+                    is also thrown away (so at most, 1 partial TR period at the
+                    beginning and/or end will be lost).
+
+                    For already-aligned data i.e. for fixed-length triggered 
+                    acquisitions, firstpeak=0 should work to keep all data.
+        
+        See original Matlab version for more details.
+
+        Returns numpy 2-D array/matrix (TODO proper terminology here?)
+    """
+
+    #print('tr_len: ', tr_len)
+    #print('firstpeak: ', firstpeak)
+
+    tr_len = assert_int(tr_len)
+    firstpeak = assert_int(firstpeak)
+
+    #new_len = us_data.Voltage.shape[0] - firstpeak + 1
+    new_len = us_data.shape[0] - firstpeak + 1
+
+    #print('tr_len: ',tr_len)
+    #print('firstpeak: ', firstpeak)
+    #print('new_len: ', new_len)
+    
+    n_periods = assert_int(np.floor(new_len // tr_len))
+
+    last_index = firstpeak + n_periods*tr_len - 1
+    #print('new shape: ', tr_len, n_periods)
+
+    # note +1 on last_index because python end-indexes are not inclusive!
+    #return np.reshape(np.array(us_data.Voltage[firstpeak:last_index+1]), 
+    return np.reshape(np.array(us_data[firstpeak:last_index+1]), 
+                      (tr_len, n_periods),
+                      order='F')    # note Fortran index order
+
+
+def assert_int(i):
+    """Safely cast i to int datatype, throwing error if the value
+        is non-integer (ie. avoid rounding 4.00001 to 4)
+
+        Only use this if the input is expected to be integer-valued,
+        but not necessarily int-type.
+    """
+    tmp = i
+    i = int(i)
+    if i != tmp:
+        raise ValueError('Input i=%f has non-integer value', tmp)
+    return i
+
 
 
 ### Plotting
@@ -338,4 +399,23 @@ def bland_altman(y1, y2):
     plt.axhline(std_of_diff,  color='k', linestyle='--', label='+stddev')
     plt.axhline(-std_of_diff, color='k', linestyle='--', label='-stddev')
 
+    plt.show()
+
+
+def plot_m_mode(data_m, title='M-Mode')
+"""Plot M-mode data
+
+    data_m = 2D M-mode matrix (see reshape_to_M_mode())
+    title = optional title string
+"""
+    # TODO - print timescale or tissue depth on Y axis (needs more input information)
+
+    # TODO extents to fill window?
+    # https://stackoverflow.com/questions/13384653/imshow-extent-and-aspect/13390798#13390798
+
+    plt.imshow(data_m, cmap='gray', aspect='auto')
+    plt.colorbar()
+    plt.title(title)
+    plt.xlabel('Repetition Index')
+    plt.ylabel('Sample Index')  # TODO change to timescale/tissue depth
     plt.show()
