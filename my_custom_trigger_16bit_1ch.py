@@ -25,6 +25,8 @@
     Doug Brantner 12/2/2021
 """
 
+# TODO NOTE A LOT OF THIS IS DEPRECATED - CHECK my_custom_trigger_16bit_2ch.py for most up-to-date code, including voltage ranges, trigger position, etc.
+
 # TODO - check voltage conversion - only showing 2.5V on plots here, but should be 5V
 #        - also shows up as 5V on external (Doug's Rigol) scope (with 1x probe attenuation setting & direct coax input)
 #           (the pulse is 0-5V on external scope, which should be correct)
