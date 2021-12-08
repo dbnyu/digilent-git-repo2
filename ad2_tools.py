@@ -59,9 +59,10 @@ def check_and_print_error(dwf, throw=False):
 
     err_str = get_error(dwf)
 
-    if len(err_str) > 0:    # TODO make this work for ctypes converted string...
+    #if len(err_str) > 0:    # TODO make this work for ctypes converted string...
     #if err_str[0] != b'\0':
     #if err_str[0] != 0x00:
+    if err_str != "b''":        # TODO hack, maybe clamp down on the b-string weirdness in get_error... but nice to see when it is empty (when verbose is wanted)
         print('firstchar = %x' % ord(err_str[0]))
         s = 'DWF ERROR: %s' % err_str
         print(s)
@@ -115,11 +116,21 @@ def int16signal2voltage(dwf, hdwf, channel, data_int16, v_range=None, v_offset=N
     print('max: %d' % max(data_int16))
 
 
+
     # TODO - maybe this implicit int16 -> float conversion is wrong? maybe we need to have an intermediate Numpy-int16 array to make sure bytes are copied correctly (endianness, signed/unsigned, etc...)???
     #voltage_signal = np.fromiter(data_int16, dtype=float)
     tmp = np.fromiter(data_int16, dtype=np.int16)
-    # TODO convert to float
+
+    print('Numpy int16 min/max:')
+    print('min: %d' % np.min(data_int16))
+    print('max: %d' % np.max(data_int16))
+
     voltage_signal = tmp.astype(np.float64, casting='safe') # TODO may be able to reduce to float32
+
+    print('Numpy float min/max:')
+    print('min: %d' % np.min(voltage_signal))
+    print('max: %d' % np.max(voltage_signal))
+
     voltage_signal = (voltage_signal * v_range.value / 65536) + v_offset.value
     return voltage_signal 
 
@@ -133,9 +144,9 @@ def print_scope_capabilities(dwf, hdwf):
 
         see also print_scope_settings() for querying changeable settings.
     """
-    min_voltage_range = c_double()
-    max_voltage_range = c_double()
-    steps_voltage_range = c_double()
+    min_voltage_range = c_double(NAN)
+    max_voltage_range = c_double(NAN)
+    steps_voltage_range = c_double(NAN)
     
     dwf.FDwfAnalogInChannelRangeInfo(hdwf,
                                      byref(min_voltage_range),
@@ -150,9 +161,9 @@ def print_scope_capabilities(dwf, hdwf):
     
     
     # Print out some info on the scope range/offset:
-    min_voltage_offset = c_double()
-    max_voltage_offset = c_double()
-    steps_voltage_offset = c_double()
+    min_voltage_offset = c_double(NAN)
+    max_voltage_offset = c_double(NAN)
+    steps_voltage_offset = c_double(NAN)
     
     dwf.FDwfAnalogInChannelOffsetInfo(hdwf, 
                                       byref(min_voltage_offset),
@@ -178,11 +189,11 @@ def print_scope_settings(dwf, hdwf):
 
     # TODO is this working? getting all zeros for range/offset (range should be 5-25)
 
-    ch1_current_v_range = c_double(float('nan'))
-    ch2_current_v_range = c_double(float('nan'))
+    ch1_current_v_range = c_double(NAN)
+    ch2_current_v_range = c_double(NAN)
     
-    ch1_current_v_offset = c_double(float('nan'))
-    ch2_current_v_offset = c_double(float('nan'))
+    ch1_current_v_offset = c_double(NAN)
+    ch2_current_v_offset = c_double(NAN)
     
     
     dwf.FDwfAnalogInChannelRangeGet(hdwf, c_int(0), byref(ch1_current_v_range))
@@ -194,8 +205,8 @@ def print_scope_settings(dwf, hdwf):
     print('Ch.2 v range, offset: %f, %f' % (ch2_current_v_range.value, ch2_current_v_offset.value))
 
     
-    ch1_attenuation = c_double(float('nan'))
-    ch2_attenuation = c_double(float('nan'))
+    ch1_attenuation = c_double(NAN)
+    ch2_attenuation = c_double(NAN)
 
     dwf.FDwfAnalogInChannelAttenuationGet(hdwf, c_int(0), byref(ch1_attenuation))
     dwf.FDwfAnalogInChannelAttenuationGet(hdwf, c_int(1), byref(ch2_attenuation))
