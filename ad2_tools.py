@@ -11,6 +11,7 @@
 
 
 from ctypes import *
+import matplotlib.pyplot as plt
 #from dwfconstants import *
 import numpy as np
 import sys
@@ -144,6 +145,12 @@ def print_scope_capabilities(dwf, hdwf):
 
         see also print_scope_settings() for querying changeable settings.
     """
+
+    print("################################")
+    print("####### AD2 Scope Limits #######")
+
+
+    # voltage input range
     min_voltage_range = c_double(NAN)
     max_voltage_range = c_double(NAN)
     steps_voltage_range = c_double(NAN)
@@ -153,14 +160,14 @@ def print_scope_capabilities(dwf, hdwf):
                                      byref(max_voltage_range),
                                      byref(steps_voltage_range),
                                      )
-    print('Scope Voltage MAX Range Info:')
-    print('min: %f' % min_voltage_range.value) 
-    print('max: %f' % max_voltage_range.value)
+    print('Voltage Range Info:')
+    print('min: %f (V)' % min_voltage_range.value) 
+    print('max: %f (V)' % max_voltage_range.value)
     print('steps: %f' % steps_voltage_range.value)
     
+    print()
     
-    
-    # Print out some info on the scope range/offset:
+    # voltage input offset
     min_voltage_offset = c_double(NAN)
     max_voltage_offset = c_double(NAN)
     steps_voltage_offset = c_double(NAN)
@@ -171,10 +178,67 @@ def print_scope_capabilities(dwf, hdwf):
                                       byref(steps_voltage_offset)
                                       )
 
-    print('Scope Voltage MAX Offset Info:')
-    print('min: %f' % min_voltage_offset.value) 
-    print('max: %f' % max_voltage_offset.value)
+    print('Voltage Offset Info:')
+    print('min: %f (V)' % min_voltage_offset.value) 
+    print('max: %f (V)' % max_voltage_offset.value)
     print('steps: %f' % steps_voltage_offset.value)
+
+    print()
+    
+    # trigger position (in time)
+    min_trigger_pos = c_double(NAN)
+    max_trigger_pos = c_double(NAN)
+    steps_trigger_pos = c_double(NAN)
+
+    dwf.FDwfAnalogInTriggerPositionInfo(hdwf, 
+                                        byref(min_trigger_pos),
+                                        byref(max_trigger_pos),
+                                        byref(steps_trigger_pos)
+                                        )
+    print('min trigger position: %f (sec)' % min_trigger_pos.value)
+    print('max trigger position: %f (sec)' % max_trigger_pos.value)
+    print('steps: %f' % steps_trigger_pos.value)
+
+    print()
+
+    # Trigger Holdoff
+    min_holdoff = c_double(NAN)
+    max_holdoff = c_double(NAN)
+    steps_holdoff = c_double(NAN)
+
+    dwf.FDwfAnalogInTriggerHoldOffInfo(hdwf,
+                                       byref(min_holdoff),
+                                       byref(max_holdoff),
+                                       byref(steps_holdoff)
+                                       )
+    print('min trigger holdoff: %f (sec)' % min_holdoff.value)
+    print('max trigger holdoff: %f (sec)' % max_holdoff.value)
+    print('steps: %f' % steps_holdoff.value)
+
+    print()
+
+    # Trigger Timeout
+    min_timeout = c_double(NAN)
+    max_timeout = c_double(NAN)
+    steps_timeout = c_double(NAN)
+
+
+    dwf.FDwfAnalogInTriggerAutoTimeoutInfo(hdwf,
+                                           byref(min_timeout),
+                                           byref(max_timeout),
+                                           byref(steps_timeout)
+                                           )
+    print('min trigger timeout: %f (sec)' % min_timeout.value)
+    print('max trigger timeout: %f (sec)' % max_timeout.value)
+    print('steps: %f' % steps_timeout.value)
+
+
+    print("####### End Scope Limits #######")
+    print("################################")
+
+    # TODO what's the difference between 'get' and 'status' methods? eg. with TriggerPosition???
+
+
 
 
 def print_scope_settings(dwf, hdwf):
@@ -212,6 +276,17 @@ def print_scope_settings(dwf, hdwf):
     dwf.FDwfAnalogInChannelAttenuationGet(hdwf, c_int(1), byref(ch2_attenuation))
     print('Ch.1, Ch.2 Attenuation: %f, %f' % (ch1_attenuation.value, ch2_attenuation.value))
 
+    current_trigger_pos = c_double(NAN)
+    dwf.FDwfAnalogInTriggerPositionGet(hdwf, byref(current_trigger_pos))
+    print('Trigger Position    : %f (sec)' % current_trigger_pos.value)
+
+    trigger_holdoff_time = c_double(NAN)
+    dwf.FDwfAnalogInTriggerHoldOffGet(hdwf, byref(trigger_holdoff_time))
+    print('Trigger Holdoff Time: %f (sec)' % trigger_holdoff_time.value)
+
+    trigger_timeout = c_double(NAN)
+    dwf.FDwfAnalogInTriggerAutoTimeoutGet(hdwf, byref(trigger_timeout))
+    print('Trigger Timeout     : %f (sec)' % trigger_timeout.value) 
 
 
 ### ctypes Helpers
@@ -228,3 +303,39 @@ def print_array(arr, line_len=10):
 
         if line_len > 0  and (i+1) % line_len == 0: # i+1 because of zero based index?
             print()
+
+
+
+
+
+### Plotting
+
+def bland_altman(y1, y2):
+    """Make a Bland-Altman Plot to compare 2 similar signals.
+
+        y1, y2 = 2 vectors, measurements of the same signal to compare
+    """
+    # TODO possible to pass kwargs to plot()?
+
+    # TODO return a handle to the plot, which can be used to set the title/xlabel/etc. later?
+    
+
+    mean = 0.5 * (y1 + y2);
+    diff = y1 - y2;
+
+    plt.plot(mean, diff, '.')
+    plt.title('Bland Altman')
+    plt.xlabel('Mean')
+    plt.ylabel('Difference')
+
+    mean_of_diff = np.mean(diff)
+    std_of_diff = np.std(diff)
+
+    print('Mean of difference: %f' % mean_of_diff)
+    print('Std. of difference: %f' % std_of_diff)
+
+    plt.axhline(mean_of_diff, color='k', linestyle='-', label='mean of diff') 
+    plt.axhline(std_of_diff,  color='k', linestyle='--', label='+stddev')
+    plt.axhline(-std_of_diff, color='k', linestyle='--', label='-stddev')
+
+    plt.show()
