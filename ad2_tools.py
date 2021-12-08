@@ -402,12 +402,12 @@ def bland_altman(y1, y2):
     plt.show()
 
 
-def plot_m_mode(data_m, title='M-Mode')
-"""Plot M-mode data
-
-    data_m = 2D M-mode matrix (see reshape_to_M_mode())
-    title = optional title string
-"""
+def plot_m_mode(data_m, title='M-Mode'):
+    """Plot M-mode data
+    
+        data_m = 2D M-mode matrix (see reshape_to_M_mode())
+        title = optional title string
+    """
     # TODO - print timescale or tissue depth on Y axis (needs more input information)
 
     # TODO extents to fill window?
