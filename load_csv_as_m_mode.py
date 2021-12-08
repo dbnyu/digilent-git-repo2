@@ -1,4 +1,8 @@
 """Import an Ultrasound CSV and reshape as M-Mode matrix.
+    
+    for data from custom1MHzWave_record.py etc. (may require some modification ie. for 2 channels, etc...)
+
+    WIP, in process of moving these to ad2_tools.py library functions...
 
     Doug Brantner 11/19/21
 """
