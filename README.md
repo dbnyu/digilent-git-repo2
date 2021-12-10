@@ -17,6 +17,11 @@
   - [2.7 Voltage cap on mesurements](https://forum.digilentinc.com/topic/20423-27-voltage-cap-on-mesurements/#comment-57671)
   - *HOWEVER* the 5V setting may be better for echo-only readouts; the 50V setting appears to have some discretization error for small signals (mV - 1V range).
   - Ultimately we only need the 5V pulse as a trigger; we don't necessarily care abouthe pulse otherwise, except if analyzing the pulse itself
+- Make sure Waveforms/Waveforms SDK is up to date
+  - Currently using	```DWF Version: b'3.17.1'```
+    - Works on Windows 10 with Anaconda and Visual Studio Code Python versions
+    - Does NOT work with DWF versions as recent as 3.7.x
+      - red flags: ie. if a certain dwf function is 'not found' - may be a version issue...
 
 ### Waveforms SDK
 [Online HTML Manual](https://digilent.com/reference/software/waveforms/waveforms-sdk/reference-manual) - may be more stable than the PDF file...
