@@ -487,18 +487,28 @@ def bland_altman(y1, y2):
     plt.show()
 
 
-def plot_m_mode(data_m, title='M-Mode'):
+def plot_m_mode(data_m, title='M-Mode', ignore_rows=30):
     """Plot M-mode data
     
         data_m = 2D M-mode matrix (see reshape_to_M_mode())
         title = optional title string
+        ignore_rows = number of rows to ignore for colormap limits
+                        ie. so that excitation pulse doesn't subdue everything else
     """
     # TODO - print timescale or tissue depth on Y axis (needs more input information)
 
     # TODO extents to fill window?
     # https://stackoverflow.com/questions/13384653/imshow-extent-and-aspect/13390798#13390798
 
+    #clim_min = np.min(data_m[30:][:])
+    #clim_max = np.max(data_m[30:][:])
+    clim_max = np.max(np.abs(data_m[ignore_rows:, :]))   # abs should make it centered on zero
+
+    # TODO colormap is still not great...
+
+
     plt.imshow(data_m, cmap='gray', aspect='auto')
+    plt.clim(-clim_max, clim_max)
     plt.colorbar()
     plt.title(title)
     plt.xlabel('Repetition Index')
