@@ -133,7 +133,7 @@ def saveData(myWave1, myWave2):
 # User Editable:
 WAVEGEN_N_ACQUISITIONS = 10        # number of pulse/echo repetitions to acquire
 WAVEGEN_WAIT_TIME = 0.01            # seconds between acquisiztions (== TR period, also serves as trigger/acquisition interval)
-WAVEGEN_PULSE_WIDTH = 1e-6          # pulse width in seconds (???) TODO CHECK THIS (confirm w/ scope)
+WAVEGEN_PULSE_WIDTH = 0.5e-6          # pulse width in seconds (???) TODO CHECK THIS (confirm w/ scope)
 # TODO should pulse width be 1/2 usec?
 WAVEGEN_PULSE_AMPLITUDE = 5.0       # voltage for pulse
 WAVEGEN_PULSE_V_OFFSET  = 0.        # voltage offset for pulse
