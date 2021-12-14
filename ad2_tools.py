@@ -370,6 +370,27 @@ def load_2ch_int16_csv(filepath):
     return data
 
 
+def conv_volts_2ch_int16(data, v_range_ch1, v_offset_ch1, v_range_ch2, v_offset_ch2):
+    """Convert int16 values to volts and add columns to dataframe.
+
+        WARNING - This modifies the input dataframe!
+            (Pass by reference adds columns automatically without explicit return value!)
+
+        data = 2 channel, int16 dataframe from load_2ch_int16_csv()
+        v_range, v_offset = scope settings (use exact settings for exact voltages)
+    """
+    data['ch1_volts'] = int16signal2voltage(data.ch1_int16, 
+                                            v_range_ch1,
+                                            v_offset_ch1
+                                            )
+
+    data['ch2_volts'] = int16signal2voltage(data.ch2_int16, 
+                                            v_range_ch2,
+                                            v_offset_ch2
+                                            )
+
+
+
 ### Convert to M-Mode
 
 def reshape_to_M_mode(us_data, tr_len, firstpeak):
