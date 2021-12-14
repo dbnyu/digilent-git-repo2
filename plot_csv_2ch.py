@@ -50,3 +50,19 @@ plt.xlabel('Time (sec - TR delays omitted!)')
 plt.ylabel('Volts')
 plt.title(os.path.basename(filepath))
 plt.show()
+
+
+
+
+# M-Mode (1 channel at a time):
+# TODO NOTE this needs the TR_len to be updated for each file...
+ad2.plot_m_mode(ad2.reshape_to_M_mode(data.ch1_volts, 8000, 0), 
+                title=os.path.basename(filepath) + ' Ch1',
+                ignore_rows=1000
+                )
+                
+
+ad2.plot_m_mode(ad2.reshape_to_M_mode(data.ch2_volts, 8000, 0), 
+                title=os.path.basename(filepath) + ' Ch2',
+                ignore_rows=1000
+                )
