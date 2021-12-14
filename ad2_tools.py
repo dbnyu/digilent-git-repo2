@@ -14,6 +14,7 @@ from ctypes import *
 import matplotlib.pyplot as plt
 #from dwfconstants import *
 import numpy as np
+import pandas as pd
 import sys
 
 # contstants
@@ -304,6 +305,32 @@ def print_array(arr, line_len=10):
         if line_len > 0  and (i+1) % line_len == 0: # i+1 because of zero based index?
             print()
 
+
+### File Import/Export
+
+### Custom CSV format:
+# NOTE - there are a few different CSV formats floating around - need to unify...
+#   - 1 channel vs. 2 channel signal
+#   - double-type voltages vs. int16 raw ADC values
+
+def load_2ch_int16_csv(filepath):
+    """Load a 2-channel int16 CSV file.
+
+        Expected column order:
+            0: index of samples (ie. row number)
+            1: Time (seconds) - this is derived from samplerate * index; not actual timestamps
+            2: ch1_int16 - raw int16 values from AD2 scope channel 1
+            3: ch2_int16 - raw int16 values from AD2 scope channel 2
+
+        Returns pandas dataframe.
+    """
+
+    data = pd.read_csv(filepath,
+                       names=['Index', 'Time', 'ch1_int16', 'ch2_int16'],
+                       dtype={'Index':int}
+                       # TODO force int16 type, or just allow doubles?
+                       )
+    return data
 
 
 ### Convert to M-Mode
