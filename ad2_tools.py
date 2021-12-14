@@ -72,9 +72,66 @@ def check_and_print_error(dwf, throw=False):
         if throw:
             raise(RuntimeError, s)
 
+def int16signal2voltage(data_int16, v_range, v_offset, verbose=False):
+    """Math-only int16 to volts conversion.
 
-def int16signal2voltage(dwf, hdwf, channel, data_int16, v_range=None, v_offset=None):
+        See get_voltage_from_int16() for getting the exact values from the scope.
+
+        data_int16 = ctypes c_int16 array of raw oscilloscope data
+        v_range = scope voltage range
+        v_offset = scope voltage offset
+            These can both be passed as regular Python floats
+        NOTE: For exact voltage conversion, the exact v_range and v_offset
+            MUST be saved from the scope DURING acquisition.
+            The exact range is not 5.0V; it is more like 5.12345V 
+                so using v_range=5.0 V and v_offset=0.0 will only give an approximate voltage!
+
+        verbose: print intermediate values during type conversions for sanity check. (bool)
+        
+        Returns float64 array of proper (or approximate) voltage values.
+
+        # TODO datatype input arg
+    """
+
+    if verbose:
+        print('int16 conversion range, offset: %f, %f (both volts)' % (v_range.value, v_offset.value))
+        print('Raw int16 min, max:')
+        print('min: %d' % min(data_int16))
+        print('max: %d' % max(data_int16))
+
+    # TODO - maybe this implicit int16 -> float conversion is wrong? maybe we need to have an intermediate Numpy-int16 array to make sure bytes are copied correctly (endianness, signed/unsigned, etc...)???
+    # TODO - above is unlikely; bug was more likely because scope was not enabled during this call.
+    #       - TODO streamline this conversion; avoid unnecessary intermediate steps/array copies
+    #voltage_signal = np.fromiter(data_int16, dtype=float)
+    tmp = np.fromiter(data_int16, dtype=np.int16)
+
+    if verbose:
+        print('Numpy int16 min/max:')
+        print('min: %d' % np.min(data_int16))
+        print('max: %d' % np.max(data_int16))
+
+    voltage_signal = tmp.astype(np.float64, casting='safe') # TODO may be able to reduce to float32
+
+    if verbose:
+        print('Numpy float min/max:')
+        print('min: %d' % np.min(voltage_signal))
+        print('max: %d' % np.max(voltage_signal))
+
+    voltage_signal = (voltage_signal * v_range / 65536) + v_offset
+
+    return voltage_signal 
+
+
+def get_volts_from_int16(dwf, hdwf, channel, data_int16, v_range=None, v_offset=None):
     """Convert raw oscilloscope 16-bit int data back to proper voltages.
+
+        Wrapper for int16signal2voltage - this will poll the AD2 scope for 
+        the correct range/offset values but THIS ONLY WORKS WHILE SCOPE IS ENABLED.
+        This function will ONLY work correctly DURING the same acquisition.
+            and is likely to be depreated soon... should be storing these values in metadata.
+
+        # TODO could do this after acquisition but before closing scope; and then save
+        # the int16 and double (volts) values at the same time...
 
 
         dwf = DLL library (see load_dwf() above.)
@@ -93,6 +150,8 @@ def int16signal2voltage(dwf, hdwf, channel, data_int16, v_range=None, v_offset=N
     """
 
     # TODO - why is this not working??? - the NaN's used as initial values are not getting overwritten...
+    # TODO - if polling the scope dwf call for range/offset, may need to do it WHILE the scope is enabled
+    #        otherwise the 'Get' calls don't work right (?)
 
     # initialize with NaN's so we know if it's updated properly
     if v_range is None:
@@ -112,29 +171,7 @@ def int16signal2voltage(dwf, hdwf, channel, data_int16, v_range=None, v_offset=N
     else:
         v_offset = c_double(v_offset) 
 
-    print('int16 conversion range, offset: %f, %f (both volts)' % (v_range.value, v_offset.value))
-    print('Raw int16 min, max:')
-    print('min: %d' % min(data_int16))
-    print('max: %d' % max(data_int16))
-
-
-
-    # TODO - maybe this implicit int16 -> float conversion is wrong? maybe we need to have an intermediate Numpy-int16 array to make sure bytes are copied correctly (endianness, signed/unsigned, etc...)???
-    #voltage_signal = np.fromiter(data_int16, dtype=float)
-    tmp = np.fromiter(data_int16, dtype=np.int16)
-
-    print('Numpy int16 min/max:')
-    print('min: %d' % np.min(data_int16))
-    print('max: %d' % np.max(data_int16))
-
-    voltage_signal = tmp.astype(np.float64, casting='safe') # TODO may be able to reduce to float32
-
-    print('Numpy float min/max:')
-    print('min: %d' % np.min(voltage_signal))
-    print('max: %d' % np.max(voltage_signal))
-
-    voltage_signal = (voltage_signal * v_range.value / 65536) + v_offset.value
-    return voltage_signal 
+    return int16signal2voltage(data_int16, v_range.value, v_offset.value)
 
 
 
