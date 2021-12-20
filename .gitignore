@@ -2,3 +2,5 @@
 waverecord.csv
 
 2021-12-08-phantomTests/
+
+__pycache__/
