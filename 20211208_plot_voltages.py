@@ -100,6 +100,19 @@ RECT_YR_V_CH2_OFFSET = -0.000028
 #                       )
 #    return data
 
+C_AIR = 343.0;
+C_WATER = 1482.3; # from https://itis.swiss/virtual-population/tissue-properties/database/acoustic-properties/speed-of-sound/
+C_TISSUE = 1540;
+
+def sec2dist(t, c):
+    """Convert time to distance.
+
+        t = time array (seconds)
+        c = speed of sound (meters/second)
+
+        Returns an array of distances in meters.
+    """
+    return c * t;   # distance = rate * time
 
 
 
