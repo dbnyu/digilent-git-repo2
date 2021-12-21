@@ -5,8 +5,10 @@ function A = load_ultrasound_csv(filename, Nchannels, int16)
 %	int16	= True if data is raw int16 or not
 
 
+int16
 
-if exist('int16', 'var') ~= 2
+if exist('int16', 'var') ~= 1
+	fprintf('No voltage format specified; assuming proper Voltages\n')
 	int16 = false;
 end
 
