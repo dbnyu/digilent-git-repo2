@@ -71,6 +71,7 @@ from dwfconstants import *
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
+import os
 import time
 import ad2_tools as ad2       # my library
 
@@ -80,28 +81,57 @@ import ad2_tools as ad2       # my library
 # TODO look at AnalogInDigitalIn_Acquisition.py for trigger sync between analog/digital inputs...
 
 
-
+# TODO - easy filename annotation (input arg - maybe basic argparse?)
+# TODO - what about output directory???
+# TODO - metadata file - voltage range/input etc.
+# TODO - convert to voltage here, before saving? (maybe not; save first - most important...)
+# TODO - functionalize the pulse waveform/setup to make it easy to change
+#   TODO - add shortname to add to output filename
 
 
 
 # Adding temp save data from custom1MHzWave_record_twochannel_16bit.py:
 
-import datetime
-import os
+import datetime # TODO merge imports above!
+#import os
 import csv
 areaname = "inUSgel_lgBUF_4milSample_lessarr"
 #folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\testdoublerecord"
-folderPath = '2021-12-08-phantomTests'
+#folderPath = '2021-12-08-phantomTests'
+folderPath = '2022-01-03-codeUpdatetests'
+
+
+
+currentTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+fname_prefix = '%s_%s' % (currentTime, areaname)
+data_filename = os.path.join(folderPath, (fname_prefix + '.csv'))
+params_filename = os.path.join(folderPath, (fname_prefix + '_params.csv'))
+
+
+
 
 def saveData(myWave1, myWave2):
-    """ from custom1MHzWave_record_twochannel_16bit.py"""
+    """ from custom1MHzWave_record_twochannel_16bit.py
 
-    print('savingData')
-    currentTime = datetime.datetime.now().strftime("%Y%m%d-%Hh%Mm%Ss")
+        myWave1,2 = waveform data (TODO more specifics...)
 
-    data_filename = folderPath +'\\' + areaname + '_' + currentTime +'.csv' 
-    flag_filename = folderPath +'\\' + areaname + '_' + currentTime +'_flags.txt' 
-    available_filename = folderPath +'\\' + areaname + '_' + currentTime +'_available.txt' 
+
+    """
+    # TODO add column headers (this will require re-writing parsers too!)
+    # TODO remove globals; make them input args
+
+    #currentTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    #fname_prefix = '%s_%s' % (currentTime, areaname)
+    #data_filename = os.path.join(folderPath, (fname_prefix + '.csv'))
+    
+
+    #data_filename = folderPath +'\\' + areaname + '_' + currentTime +'.csv' 
+    #flag_filename = folderPath +'\\' + areaname + '_' + currentTime +'_flags.txt' 
+    #available_filename = folderPath +'\\' + areaname + '_' + currentTime +'_available.txt' 
+
+    print('Saving Data to: %s' % data_filename)
 
     with open(data_filename, 'w', newline='') as wave_file:
         wave_writer = csv.writer(wave_file, delimiter = ',')
@@ -176,6 +206,7 @@ sts_ch1 = c_byte()  # scope channel 1 status
 
 
 
+
 # number of samples for all repetitions (for 1 channel):
 big_output_len = int(int(INPUT_SAMPLE_SIZE) * int(WAVEGEN_N_ACQUISITIONS))
 
@@ -237,6 +268,8 @@ if hdwf.value == hdwfNone.value:
     dwf.FDwfGetLastErrorMsg(szError);
     print("failed to open device\n"+str(szError.value))
     quit()
+
+scope_params = ad2.ScopeParams(dwf, hdwf)
 
 print('testing my error function:')
 print(ad2.get_error(dwf) + '\n')
@@ -341,6 +374,8 @@ dwf.FDwfAnalogInConfigure(hdwf, c_bool(False), c_bool(True))    # This starts th
 print('\nScope Settings (AFTER configure):')
 ad2.print_scope_settings(dwf, hdwf)
 
+scope_params.get_scope_params()
+
 print("Generating pulses")
 dwf.FDwfAnalogOutConfigure(hdwf, channel, c_bool(True))     # this starts actual pulse output
 
@@ -421,11 +456,12 @@ dwf.FDwfAnalogOutConfigure(hdwf, c_int(0), c_bool(False))
 print('int16 ch1 min: %d' % min(acquisition_data_ch1))
 print('int16 ch1 max: %d' % max(acquisition_data_ch1))
 
+# TODO is this outdated (changed function names/effects to separate getting info from scope vs. actual conversion???)
 
 # need to do this BEFORE closing the scope because the scope range/offset calls are required
 # TODO could just store those & use later...
-voltage_ch1 = ad2.int16signal2voltage(dwf, hdwf, 0, acquisition_data_ch1)
-voltage_ch2 = ad2.int16signal2voltage(dwf, hdwf, 1, acquisition_data_ch2)
+#voltage_ch1 = ad2.int16signal2voltage(dwf, hdwf, 0, acquisition_data_ch1)
+#voltage_ch2 = ad2.int16signal2voltage(dwf, hdwf, 1, acquisition_data_ch2)
 
 # TODO are these 2 lines redundant?:
 dwf.FDwfDeviceCloseAll()
@@ -434,7 +470,30 @@ dwf.FDwfDeviceCloseAll()
 dwf.FDwfDeviceClose(hdwf)
 
 
+
+# POST PROCESSING:
+
+
 #print_array(acquisition_data_ch1)
+
+voltage_ch1 = ad2.int16signal2voltage(acquisition_data_ch1, 
+                                      scope_params.ch1_v_range,
+                                      scope_params.ch1_v_offset,
+                                      verbose=False)
+
+voltage_ch2 = ad2.int16signal2voltage(acquisition_data_ch2, 
+                                      scope_params.ch2_v_range,
+                                      scope_params.ch2_v_offset,
+                                      verbose=False)
+
+
+
+# saving 16bit data: 
+print('Saving raw int16 data...')
+saveData(acquisition_data_ch1, acquisition_data_ch2)
+
+print('Saving scope params metadata...')
+scope_params.write_param_file(params_filename)
 
 
 print('full record time: %f sec' % BIG_BUFFER_FULL_TIME)
@@ -557,9 +616,9 @@ plt.show()
 ad2.bland_altman(voltage_ch1, voltage_ch2)
 
 
-# saving 16bit data: 
-print('Saving raw int16 data...')
-saveData(acquisition_data_ch1, acquisition_data_ch2)
+
+
+
 
 #################
 ## Troubleshooting voltage values:
