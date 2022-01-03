@@ -22,6 +22,127 @@ import sys
 NAN = float('nan')      # for initializing test values
 
 
+# Scope Settings Class
+# To get and store oscilloscope intput parameters
+
+class ScopeParams():
+    """Access and store AD2 oscilloscope settings.
+
+        Takes care of all ctypes conversions; everything here
+        is stored as regular Python types ie. 'float'
+    """
+
+    def __init__(self, dwf, hdwf):
+        # hardware access constants:
+        self.dwf = dwf
+        self.hdwf = hdwf
+
+        # scope parameters (to be populated at runtime):
+        self.ch1_v_range = NAN
+        self.ch2_v_range = NAN
+        self.ch1_v_offset = NAN
+        self.ch2_v_offset = NAN
+
+        self.ch1_attenuation = NAN
+        self.ch2_attenuation = NAN
+
+        self.trigger_pos = NAN
+        self.trigger_holdoff_time = NAN
+        self.trigger_timeout = NAN
+
+
+    def get_scope_params(self):
+        """Get current settings from AD2 and set this object's member values.
+
+           AD2 must be plugged in & scope must be ENABLED
+           to get valid data.
+
+           This handles ctypes conversions as well.
+        """
+
+        ch1_current_v_range = c_double(NAN)
+        ch2_current_v_range = c_double(NAN)
+        ch1_current_v_offset = c_double(NAN)
+        ch2_current_v_offset = c_double(NAN)
+    
+        self.dwf.FDwfAnalogInChannelRangeGet(self.hdwf, c_int(0), byref(ch1_current_v_range))
+        self.dwf.FDwfAnalogInChannelRangeGet(self.hdwf, c_int(1), byref(ch2_current_v_range))
+        self.dwf.FDwfAnalogInChannelOffsetGet(self.hdwf, c_int(0), byref(ch1_current_v_offset))
+        self.dwf.FDwfAnalogInChannelOffsetGet(self.hdwf, c_int(1), byref(ch2_current_v_offset))
+
+    
+        ch1_attenuation = c_double(NAN)
+        ch2_attenuation = c_double(NAN)
+        self.dwf.FDwfAnalogInChannelAttenuationGet(self.hdwf, c_int(0), byref(ch1_attenuation))
+        self.dwf.FDwfAnalogInChannelAttenuationGet(self.hdwf, c_int(1), byref(ch2_attenuation))
+
+        current_trigger_pos = c_double(NAN)
+        self.dwf.FDwfAnalogInTriggerPositionGet(self.hdwf, byref(current_trigger_pos))
+
+        trigger_holdoff_time = c_double(NAN)
+        self.dwf.FDwfAnalogInTriggerHoldOffGet(self.hdwf, byref(trigger_holdoff_time))
+
+        trigger_timeout = c_double(NAN)
+        self.dwf.FDwfAnalogInTriggerAutoTimeoutGet(self.hdwf, byref(trigger_timeout))
+
+
+        # ctypes to python type conversion:
+        # TODO explicit float() casting?
+        self.ch1_v_range  = ch1_current_v_range.value
+        self.ch2_v_range  = ch2_current_v_range.value
+        self.ch1_v_offset = ch1_current_v_offset.value
+        self.ch2_v_offset = ch2_current_v_offset.value
+
+        self.ch1_attenuation = ch1_attenuation.value
+        self.ch2_attenuation = ch2_attenuation.value
+
+        self.trigger_pos = current_trigger_pos.value
+        self.trigger_holdoff_time = trigger_holdoff_time.value 
+        self.trigger_timeout = trigger_timeout.value 
+
+        # TODO print function
+
+    def write_param_file(self, filepath):
+        """Write settings to file.
+
+            filepath = full path including filename & extension (should be .csv)
+
+            This writes a 2-line CSV file
+                line 1 = headers
+                line 2 = data
+                sort of like a horizontal config file.
+        """
+
+        csv_headers = ','.join(['ch1_v_range',
+                                'ch2_v_range',
+                                'ch1_v_offset',
+                                'ch2_v_offset',
+                                'ch1_attenuation',
+                                'ch2_attenuation',
+                                'trigger_pos',
+                                'trigger_holdoff_time',
+                                'trigger_timeout',
+                                ])
+
+        csv_data = ','.join([ str(val) for val in [self.ch1_v_range,
+                                                   self.ch2_v_range,
+                                                   self.ch1_v_offset,
+                                                   self.ch2_v_offset,
+                                                   self.ch1_attenuation,
+                                                   self.ch2_attenuation,
+                                                   self.trigger_pos,
+                                                   self.trigger_holdoff_time,
+                                                   self.trigger_timeout,
+                                                   ]])
+
+        with open(filepath, 'w') as f:
+            f.write(csv_headers)
+            f.write('\n')
+            f.write(csv_data)
+
+
+# General Waveforms/DWF setup:
+
 def load_dwf():
     """Find and load platform-specific DWF (Waveforms SDK) library.
 
@@ -75,7 +196,7 @@ def check_and_print_error(dwf, throw=False):
 def int16signal2voltage(data_int16, v_range, v_offset, verbose=False):
     """Math-only int16 to volts conversion.
 
-        See get_voltage_from_int16() for getting the exact values from the scope.
+        See get_volts_from_int16() for getting the exact values from the scope.
 
         data_int16 = ctypes c_int16 array of raw oscilloscope data
         v_range = scope voltage range
@@ -94,7 +215,7 @@ def int16signal2voltage(data_int16, v_range, v_offset, verbose=False):
     """
 
     if verbose:
-        print('int16 conversion range, offset: %f, %f (both volts)' % (v_range.value, v_offset.value))
+        print('int16 conversion range, offset: %f, %f (both volts)' % (v_range, v_offset))
         print('Raw int16 min, max:')
         print('min: %d' % min(data_int16))
         print('max: %d' % max(data_int16))
@@ -282,12 +403,15 @@ def print_scope_capabilities(dwf, hdwf):
 def print_scope_settings(dwf, hdwf):
     """Access and print basic scope settings (User-changeable ones):
 
+        NOTE - this only works while scope is enabled.
+
         For all channels:
             voltage range
             voltage offset
 
         See print_scope_capabilities for static variables.
     """
+    # TODO this may be depredated by ScopeParams class...
 
     # TODO is this working? getting all zeros for range/offset (range should be 5-25)
 
