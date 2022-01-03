@@ -93,7 +93,6 @@ import ad2_tools as ad2       # my library
 # Adding temp save data from custom1MHzWave_record_twochannel_16bit.py:
 
 import datetime # TODO merge imports above!
-#import os
 import csv
 areaname = "inUSgel_lgBUF_4milSample_lessarr"
 #folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\testdoublerecord"
@@ -105,7 +104,7 @@ folderPath = '2022-01-03-codeUpdatetests'
 currentTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 fname_prefix = '%s_%s' % (currentTime, areaname)
-data_filename = os.path.join(folderPath, (fname_prefix + '.csv'))
+data_filename =   os.path.join(folderPath, (fname_prefix + '.csv'))
 params_filename = os.path.join(folderPath, (fname_prefix + '_params.csv'))
 
 
@@ -167,6 +166,7 @@ WAVEGEN_PULSE_WIDTH = 0.5e-6          # pulse width in seconds (???) TODO CHECK 
 # TODO should pulse width be 1/2 usec?
 WAVEGEN_PULSE_AMPLITUDE = 5.0       # voltage for pulse
 WAVEGEN_PULSE_V_OFFSET  = 0.        # voltage offset for pulse
+WAVEGEN_CHANNEL = 0                 # which output channel to use for pulses (0 or 1)
 
 # Recording Parameters:
 # From AnalogIn_Trigger.py
@@ -247,7 +247,7 @@ dwf = ad2.load_dwf()
 #    dwf = cdll.LoadLibrary("libdwf.so")
 
 hdwf = c_int()
-channel = c_int(0)  # wavegen channel #1
+#channel = c_int(0)  # wavegen channel #1
 
 
 version = create_string_buffer(16)
@@ -292,20 +292,44 @@ ad2.print_scope_settings(dwf, hdwf)
 
 # TODO break out important settings to user-edit section up top (amplitude, etc)
 
-# Single Square Wave Pulse:
-dwf.FDwfAnalogOutNodeEnableSet(hdwf, channel, AnalogOutNodeCarrier, c_bool(True))
-dwf.FDwfAnalogOutIdleSet(hdwf, channel, DwfAnalogOutIdleOffset)
-dwf.FDwfAnalogOutNodeFunctionSet(hdwf, channel, AnalogOutNodeCarrier, funcSquare)
-dwf.FDwfAnalogOutNodeFrequencySet(hdwf, channel, AnalogOutNodeCarrier, c_double(0)) # low frequency
-dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, channel, AnalogOutNodeCarrier, c_double(WAVEGEN_PULSE_AMPLITUDE))
-#dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, channel, AnalogOutNodeCarrier, c_double(-5))    # TODO not clear if negative square amplitude is valid? probalby not..
-dwf.FDwfAnalogOutNodeOffsetSet(hdwf, channel, AnalogOutNodeCarrier, c_double(WAVEGEN_PULSE_V_OFFSET))
-dwf.FDwfAnalogOutRunSet(hdwf, channel, c_double(WAVEGEN_PULSE_WIDTH)) # pulse length in time (?)
-dwf.FDwfAnalogOutWaitSet(hdwf, channel, c_double(WAVEGEN_WAIT_TIME)) # wait length  10 ms = 100 Hz repetition frequency (TR)
-dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(WAVEGEN_N_ACQUISITIONS)) # repeat N times
-# TODO see if square wave can go +/- or only +????
+# TODO START HERE
+def setpulse_single_square_pulse(dwf, hdwf, channel, width, wait, n_acq, amplitude, v_offset=0):
+    """Set Waveform Output to a single square pulse (repeating every TR).
+
+        This does a specified number of pulses (n_acq) then stops.
+
+        dwf
+        hdwf
+        channel = which waveform generator channel to set (0 or 1, python-int)
+        width = pulse width (seconds)
+        wait  = wait/delay time (aka. TR; seconds)
+        n_acq = number of acquisition cycles (int)
+        amplitude = pulse amplitude (volts, 0-5)
+        v_offset = voltage offset (volts, optional)
+
+    """
+    channel = c_int(channel)
+
+    # Single Square Wave Pulse:
+    dwf.FDwfAnalogOutNodeEnableSet(hdwf, channel, AnalogOutNodeCarrier, c_bool(True))
+    dwf.FDwfAnalogOutIdleSet(hdwf, channel, DwfAnalogOutIdleOffset)
+    dwf.FDwfAnalogOutNodeFunctionSet(hdwf, channel, AnalogOutNodeCarrier, funcSquare)
+    dwf.FDwfAnalogOutNodeFrequencySet(hdwf, channel, AnalogOutNodeCarrier, c_double(0)) # low frequency # TODO what is this?
+    dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, channel, AnalogOutNodeCarrier, c_double(amplitude))
+    dwf.FDwfAnalogOutNodeOffsetSet(hdwf, channel, AnalogOutNodeCarrier, c_double(v_offset))
+    dwf.FDwfAnalogOutRunSet(hdwf, channel, c_double(width)) # pulse length in time
+    dwf.FDwfAnalogOutWaitSet(hdwf, channel, c_double(wait)) # wait length  10 ms = 100 Hz repetition frequency (TR)
+    dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(n_acq)) # repeat N times
 
 
+setpulse_single_square_pulse(dwf, 
+                             hdwf, 
+                             WAVEGEN_CHANNEL,
+                             WAVEGEN_PULSE_WIDTH, 
+                             WAVEGEN_WAIT_TIME,
+                             WAVEGEN_N_ACQUISITIONS,
+                             WAVEGEN_PULSE_AMPLITUDE,
+                             )
 
 
 # TODO may need a TR counter or a timeout (ie. if we lose some pings, when do we stop?)
@@ -377,7 +401,7 @@ ad2.print_scope_settings(dwf, hdwf)
 scope_params.get_scope_params()
 
 print("Generating pulses")
-dwf.FDwfAnalogOutConfigure(hdwf, channel, c_bool(True))     # this starts actual pulse output
+dwf.FDwfAnalogOutConfigure(hdwf, c_int(WAVEGEN_CHANNEL), c_bool(True))     # this starts actual pulse output
 
 # wait at least 2 seconds with Analog Discovery for the offset to stabilize, before the first reading after device open or offset/range change
 #time.sleep(2)  # TODO ignoring this for now... lets see what happens...
@@ -449,7 +473,7 @@ for iTrigger in range(WAVEGEN_N_ACQUISITIONS):  # TODO this should be until big_
 
 print('Number of loops: %d' % iTrigger)
 print('Done...')
-dwf.FDwfAnalogOutConfigure(hdwf, c_int(0), c_bool(False))
+dwf.FDwfAnalogOutConfigure(hdwf, c_int(WAVEGEN_CHANNEL), c_bool(False))
 # TODO close the scope too?
 
 
