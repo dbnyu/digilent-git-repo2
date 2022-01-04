@@ -156,10 +156,14 @@ def saveData(myWave1, myWave2):
 
 
 
-# Pulser Parameters (Wavegen Output #1):
-# This is for a single positive-going rectangular pulse, that is repeated every 'wait time'
+# Pulser Parameters:
+WAVEGEN_PULSE_TYPE = 'SQUARE_PULSE_1'
+#WAVEGEN_PULSE_TYPE = 'SINE_N_CYCLES'
+
 # WAVEGEN_N_ACQUISITIONS sets the number of pulses generated, which also determines the number of acquisitions (and run time)
 # User Editable:
+# This is for a single positive-going rectangular pulse, that is repeated every 'wait time'
+# (some params are shared with sinewave N cycles)
 WAVEGEN_N_ACQUISITIONS = 10        # number of pulse/echo repetitions to acquire
 WAVEGEN_WAIT_TIME = 0.01            # seconds between acquisiztions (== TR period, also serves as trigger/acquisition interval)
 WAVEGEN_PULSE_WIDTH = 0.5e-6          # pulse width in seconds (???) TODO CHECK THIS (confirm w/ scope)
@@ -167,6 +171,9 @@ WAVEGEN_PULSE_WIDTH = 0.5e-6          # pulse width in seconds (???) TODO CHECK 
 WAVEGEN_PULSE_AMPLITUDE = 5.0       # voltage for pulse
 WAVEGEN_PULSE_V_OFFSET  = 0.        # voltage offset for pulse
 WAVEGEN_CHANNEL = 0                 # which output channel to use for pulses (0 or 1)
+
+# This is for N cycles of sine wave:
+WAVEGEN_SINE_N_CYCLES = 10          # number of cycles (sine wave pulse only)
 
 # Recording Parameters:
 # From AnalogIn_Trigger.py
@@ -181,14 +188,15 @@ INPUT_TRIGGER_POSITION_TIME = 0.99 * 0.5 * INPUT_SINGLE_ACQUISITION_TIME  # seco
 #               - so that we can see 1 pulse period of "intentional nothing" before trigger/pulse
 #                   so we can be sure the triggers are perfectly in sync (ie. ensure we capture the correct rising edge)
 #               - 0.99 assumes 200usec window so that 1/2 is 100usec and 99% of 100 == 99usec, so there is 1usec of dead pre-roll time in the beginning.
+# TODO - double check trigger position/delay after updating new waveforms (sine N cycles)!!!!
 
 SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
 
 SCOPE_VOLT_RANGE_CH1 = 50.0      # oscilloscope ch1 input range (volts)
-SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not yet implemented (only using for plotting atm.)
+SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not yet implemented (probably not needed; zero is preferred)
 
 SCOPE_VOLT_RANGE_CH2 = 5.0      # ch2 - volts
-SCOPE_VOLT_OFFSET_CH2 = 0.      # ch2 - volts   # TODO not yet implemented (only using for plotting atm.)
+SCOPE_VOLT_OFFSET_CH2 = 0.      # ch2 - volts   # TODO not yet implemented
 
 # TODO adjust voltage range for smaller echos? (ie. trigger-only channel can be 5V, but is scope more sensitive for echos if we use lower range? Or is this only for post-processing reconstruction of the voltage values?) 
 # ie. does this have any bearing on the int16 values or not???
@@ -238,16 +246,9 @@ if INPUT_SAMPLE_RATE > 100e6:
 print('Acquiring %d periods over %.2f seconds...' %  (WAVEGEN_N_ACQUISITIONS, total_record_time))
 
 
+# setup hardware device:
 dwf = ad2.load_dwf()
-#if sys.platform.startswith("win"):
-#    dwf = cdll.dwf
-#elif sys.platform.startswith("darwin"):
-#    dwf = cdll.LoadLibrary("/Library/Frameworks/dwf.framework/dwf")
-#else:
-#    dwf = cdll.LoadLibrary("libdwf.so")
-
 hdwf = c_int()
-#channel = c_int(0)  # wavegen channel #1
 
 
 version = create_string_buffer(16)
@@ -259,7 +260,6 @@ dwf.FDwfParamSet(DwfParamOnClose, c_int(0)) # 0 = run, 1 = stop, 2 = shutdown
 #open device
 print("Opening first device...")
 dwf.FDwfDeviceOpen(c_int(-1), byref(hdwf))
-
 # TODO set config for memory (see AnalogIn_Trigger.py)
 # TODO print buffer sizes!
 
@@ -342,8 +342,9 @@ def setpulse_sine_n_cycles(dwf, hdwf, channel, n_cycles, amplitude, v_offset=0, 
     for t in timespots:
         waveformSamples[index] = np.sin(t*2*np.pi*waveFreq)
         index = index+1
-    # **** PLOT TO DOUBLE CHECK IF THE TIME FORM IS CORRECT ****
+        # TODO this can be a numpy oneliner but may be tricky casting back to ctypes array...
 
+    # **** PLOT TO DOUBLE CHECK IF THE TIME FORM IS CORRECT ****
     if plot:
         plt.plot(timespots,waveformSamples,marker='.')
         plt.title('wavesamples at ' + str(waveFreq))
@@ -369,26 +370,30 @@ def setpulse_sine_n_cycles(dwf, hdwf, channel, n_cycles, amplitude, v_offset=0, 
 
 
 
+if WAVEGEN_PULSE_TYPE == 'SQUARE_PULSE_1':
+    print('Wavegen: Single Square Pulse')
+    setpulse_single_square_pulse(dwf, 
+                                 hdwf, 
+                                 WAVEGEN_CHANNEL,
+                                 WAVEGEN_PULSE_WIDTH, 
+                                 WAVEGEN_WAIT_TIME,
+                                 WAVEGEN_N_ACQUISITIONS,
+                                 WAVEGEN_PULSE_AMPLITUDE,
+                                 )
 
-#setpulse_single_square_pulse(dwf, 
-#                             hdwf, 
-#                             WAVEGEN_CHANNEL,
-#                             WAVEGEN_PULSE_WIDTH, 
-#                             WAVEGEN_WAIT_TIME,
-#                             WAVEGEN_N_ACQUISITIONS,
-#                             WAVEGEN_PULSE_AMPLITUDE,
-#                             )
-
-
-# TODO START HERE
-setpulse_sine_n_cycles(dwf,
-                       hdwf,
-                       WAVEGEN_CHANNEL,
-                       3,  # TODO NOT YET IMPLEMENTED
-                       5,
-                       v_offset=0,
-                       plot=False,
-                       )
+elif WAVEGEN_PULSE_TYPE == 'SINE_N_CYCLES':
+    print('Wavegen: Sine Wave N Cycles')
+    setpulse_sine_n_cycles(dwf,
+                           hdwf,
+                           WAVEGEN_CHANNEL,
+                           WAVEGEN_SINE_N_CYCLES,
+                           WAVEGEN_PULSE_AMPLITUDE,
+                           v_offset=0,
+                           plot=False,
+                           )
+else:
+    print('Invalid WAVEGEN_PULSE_TYPE - Quitting!')
+    quit()
 
 # TODO may need a TR counter or a timeout (ie. if we lose some pings, when do we stop?)
 # TODO is there a wavegen off trigger? ie. when the automatic pulse train stops????
