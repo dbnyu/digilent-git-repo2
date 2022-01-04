@@ -68,17 +68,22 @@
 
 from ctypes import *
 from dwfconstants import *
+
 import matplotlib.pyplot as plt
 import numpy as np
+import datetime
+import time
+import csv
 import sys
 import os
-import time
+import argparse
+
 import ad2_tools as ad2       # my library
 
 
-#nan = float('nan')  # for initializing variables
 
-# TODO look at AnalogInDigitalIn_Acquisition.py for trigger sync between analog/digital inputs...
+# look at AnalogInDigitalIn_Acquisition.py for trigger sync between analog/digital inputs...
+# Adding temp save data from custom1MHzWave_record_twochannel_16bit.py
 
 
 # TODO - easy filename annotation (input arg - maybe basic argparse?)
@@ -86,29 +91,39 @@ import ad2_tools as ad2       # my library
 # TODO - metadata file - voltage range/input etc.
 # TODO - convert to voltage here, before saving? (maybe not; save first - most important...)
 # TODO - functionalize the pulse waveform/setup to make it easy to change
-#   TODO - add shortname to add to output filename
+#   TODO - add wavegen shortname w/ metadata to add to output filename
+#   TODO - add another CSV config file output, or append to the existing one?
 
 
 
-# Adding temp save data from custom1MHzWave_record_twochannel_16bit.py:
 
-import datetime # TODO merge imports above!
-import csv
-areaname = "inUSgel_lgBUF_4milSample_lessarr"
+parser = argparse.ArgumentParser(description='Analog Discovery 2, 16-bit 2-ch  Ultrasound Acquisition')
+parser.add_argument('-f', '--folder', required=True, help='directory to save files')
+parser.add_argument('-d', '--desc',   default='untitled', help='short description for filename')
+parser.add_argument('-p', '--pulseinfo', type=bool, default=False, help='append pulse info to filename')
+# TODO pulse args? ie. to modify pulse? maybe just a select few ie. voltage...
+
+args = parser.parse_args()
+folderPath = args.folder
+description = args.desc
+append_pulse_info = args.pulseinfo  # TODO not yet implemented
+
+
+#description = "inUSgel_lgBUF_4milSample_lessarr"    # description for filename
 #folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\testdoublerecord"
 #folderPath = '2021-12-08-phantomTests'
-folderPath = '2022-01-03-codeUpdatetests'
+#folderPath = '2022-01-03-codeUpdatetests'
 
 
 
 currentTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-fname_prefix = '%s_%s' % (currentTime, areaname)
+fname_prefix = '%s_%s' % (currentTime, description)
 data_filename =   os.path.join(folderPath, (fname_prefix + '.csv'))
 params_filename = os.path.join(folderPath, (fname_prefix + '_params.csv'))
 
 
-
+print(data_filename)
 
 def saveData(myWave1, myWave2):
     """ from custom1MHzWave_record_twochannel_16bit.py
@@ -122,13 +137,13 @@ def saveData(myWave1, myWave2):
 
     #currentTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    #fname_prefix = '%s_%s' % (currentTime, areaname)
+    #fname_prefix = '%s_%s' % (currentTime, description)
     #data_filename = os.path.join(folderPath, (fname_prefix + '.csv'))
     
 
-    #data_filename = folderPath +'\\' + areaname + '_' + currentTime +'.csv' 
-    #flag_filename = folderPath +'\\' + areaname + '_' + currentTime +'_flags.txt' 
-    #available_filename = folderPath +'\\' + areaname + '_' + currentTime +'_available.txt' 
+    #data_filename = folderPath +'\\' + description + '_' + currentTime +'.csv' 
+    #flag_filename = folderPath +'\\' + description + '_' + currentTime +'_flags.txt' 
+    #available_filename = folderPath +'\\' + description + '_' + currentTime +'_available.txt' 
 
     print('Saving Data to: %s' % data_filename)
 
@@ -210,7 +225,7 @@ INPUT_SAMPLE_PERIOD = 1. / INPUT_SAMPLE_RATE    # seconds per acquired sample
 
 
 # NOTE - for now, ch 1 is the 'main recording channel' so only keeping track of ch1 status... assuming ch2. is 'in sync' with it, but we only care about the beginning of the ch2 signal anyway to see if the triggers/excitation pulses are in sync...
-sts_ch1 = c_byte()  # scope channel 1 status
+scope_status = c_byte()  # scope channel 1 status
 
 
 
@@ -491,24 +506,28 @@ double_stride = INPUT_SAMPLE_SIZE * sizeof(c_double)
 # TODO - how do we know if there was a timeout vs. a proper acquisitin? is there a flag in the status?
 # TODO - will the buffer be zero'd on a timeout, or is it possible to have a false second reading of the previous buffer?
 
-# From AnalogIn_Trigger.py:
-# TODO change name; itrigger is a vestige of one of the example files
-for iTrigger in range(WAVEGEN_N_ACQUISITIONS):  # TODO this should be until big_buffer is filled (or N_acquistions)
-    # new acquisition is started automatically after done state 
 
+
+# From AnalogIn_Trigger.py:
+for iTrigger in range(WAVEGEN_N_ACQUISITIONS):  # TODO this should be until big_buffer is filled (or N_acquistions)
+
+    # keep this for debugging (sometimes the trigger fails & the program hangs)
     #print('start loop %d' % iTrigger)
     #print('.', end='') # print a dot for every acquisition loop (comment out for faster loop)
 
+
     # busy wait loop for buffer to finish filling for 1 acquisition
+    # new acquisition is started automatically after done state 
     while True:
-        dwf.FDwfAnalogInStatus(hdwf, c_int(1), byref(sts_ch1))
-        # TODO - for now, using ch1. as the "main recording buffer" - so we only care if ch1 is finished, not ch2 (revisit this...)
-        if sts_ch1.value == DwfStateDone.value:
+        dwf.FDwfAnalogInStatus(hdwf, c_int(1), byref(scope_status)) # c_int_(1) is a flag to actually transfer data; NOT a channel #.
+        if scope_status.value == DwfStateDone.value:
             break
         #time.sleep(0.001) # TODO THIS SHOULD BE MUCH SMALLER O(1-10 microseconds)
         # TODO add this back in? or leave it? would be intersting to time this loop or count it especially at very high sample rates
+
     
     # TODO try capturing double-formatted data; see if the voltage values are correct there...
+    # TODO try profiling double voltages; or ask on forum... is int16 capture actually saving any time?
 
     # save channel 1 data
     dwf.FDwfAnalogInStatusData16(hdwf, 
@@ -529,9 +548,10 @@ for iTrigger in range(WAVEGEN_N_ACQUISITIONS):  # TODO this should be until big_
     # troubleshooting (compare SDK voltage values to my computed voltages)
     #dwf.FDwfAnalogInStatusData(hdwf, c_int(0), byref(double_data_ch1, double_ptr), INPUT_SAMPLE_SIZE)
     #dwf.FDwfAnalogInStatusData(hdwf, c_int(1), byref(double_data_ch2, double_ptr), INPUT_SAMPLE_SIZE)
+    #double_ptr += double_stride
 
     acquisition_data_index += acquisition_data_stride 
-    double_ptr += double_stride
+
 
 
 print('Number of loops: %d' % iTrigger)
@@ -543,18 +563,10 @@ dwf.FDwfAnalogOutConfigure(hdwf, c_int(WAVEGEN_CHANNEL), c_bool(False))
 print('int16 ch1 min: %d' % min(acquisition_data_ch1))
 print('int16 ch1 max: %d' % max(acquisition_data_ch1))
 
-# TODO is this outdated (changed function names/effects to separate getting info from scope vs. actual conversion???)
-
-# need to do this BEFORE closing the scope because the scope range/offset calls are required
-# TODO could just store those & use later...
-#voltage_ch1 = ad2.int16signal2voltage(dwf, hdwf, 0, acquisition_data_ch1)
-#voltage_ch2 = ad2.int16signal2voltage(dwf, hdwf, 1, acquisition_data_ch2)
 
 # TODO are these 2 lines redundant?:
 dwf.FDwfDeviceCloseAll()
-
-# from AnalogOut_Pulse.py:
-dwf.FDwfDeviceClose(hdwf)
+dwf.FDwfDeviceClose(hdwf) # from AnalogOut_Pulse.py
 
 
 
@@ -655,8 +667,6 @@ if np.max(difference) == 0:
 
 # TODO - NOTE - exact difference == 0 for so many samples is unlikely...
 #   however, we started with 16bit int discretized values, so that makes it slightly less strange... 
-#   still, seems too good to be true??? TODO
-
 
 print('\n\n')
 
