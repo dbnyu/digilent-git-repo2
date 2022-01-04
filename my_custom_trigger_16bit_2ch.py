@@ -290,9 +290,6 @@ ad2.print_scope_settings(dwf, hdwf)
 # Wavegen Output
 # from AnalogOut_Pulse.py:
 
-# TODO break out important settings to user-edit section up top (amplitude, etc)
-
-# TODO START HERE
 def setpulse_single_square_pulse(dwf, hdwf, channel, width, wait, n_acq, amplitude, v_offset=0):
     """Set Waveform Output to a single square pulse (repeating every TR).
 
@@ -322,15 +319,76 @@ def setpulse_single_square_pulse(dwf, hdwf, channel, width, wait, n_acq, amplitu
     dwf.FDwfAnalogOutRepeatSet(hdwf, channel, c_int(n_acq)) # repeat N times
 
 
-setpulse_single_square_pulse(dwf, 
-                             hdwf, 
-                             WAVEGEN_CHANNEL,
-                             WAVEGEN_PULSE_WIDTH, 
-                             WAVEGEN_WAIT_TIME,
-                             WAVEGEN_N_ACQUISITIONS,
-                             WAVEGEN_PULSE_AMPLITUDE,
-                             )
+#def setpulse_single_square_pulse(dwf, hdwf, channel, width, wait, n_acq, amplitude, v_offset=0):
+def setpulse_sine_n_cycles(dwf, hdwf, channel, n_cycles, amplitude, v_offset=0, plot=False):
+    """Set Waveform Output to N cycles of sine wave.
 
+        NOTE - keeping most defaults (including frequency) for now...
+
+    """
+    # TODO revisit this; make it mre modular / expose more input args
+    channel = c_int(channel)
+
+    waveBufferLen = 1024 
+    waveFreq = 1e6
+    wavePeriod = 1.0/waveFreq
+    waveformSamples = (c_double*waveBufferLen)()
+
+    pulseWidth = c_double(n_cycles * wavePeriod) # convert n_cycles to time window (seconds)
+
+    # create buffer samples for one period of sine wave
+    timespots = np.linspace(0,wavePeriod,num=waveBufferLen)
+    index = 0
+    for t in timespots:
+        waveformSamples[index] = np.sin(t*2*np.pi*waveFreq)
+        index = index+1
+    # **** PLOT TO DOUBLE CHECK IF THE TIME FORM IS CORRECT ****
+
+    if plot:
+        plt.plot(timespots,waveformSamples,marker='.')
+        plt.title('wavesamples at ' + str(waveFreq))
+        plt.show()
+    print("Generating custom waveform...")
+    
+    # settings for output
+    # TODO change to 'channel' var:
+    dwf.FDwfAnalogOutNodeEnableSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_bool(True))
+    dwf.FDwfAnalogOutNodeFunctionSet(hdwf, c_int(0), AnalogOutNodeCarrier, funcCustom)
+    dwf.FDwfAnalogOutNodeDataSet(hdwf, c_int(0), AnalogOutNodeCarrier, waveformSamples, c_int(waveBufferLen))
+    # set 
+    dwf.FDwfAnalogOutNodeFrequencySet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(waveFreq))
+    dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(amplitude))
+    
+    # 40000 times to repeat is to be able to have it run for at least a few seconds
+    timesToRepeat = c_int(40000)  # no unit
+    #pulseWidth = c_double(10e-6)  # in seconds  # TODO does this control # of cycles???
+    pulseWait = c_double(900e-6)  # in seconds
+    dwf.FDwfAnalogOutRunSet(hdwf, channel, pulseWidth) 
+    dwf.FDwfAnalogOutWaitSet(hdwf, channel, pulseWait) 
+    dwf.FDwfAnalogOutRepeatSet(hdwf, channel, timesToRepeat) 
+
+
+
+
+#setpulse_single_square_pulse(dwf, 
+#                             hdwf, 
+#                             WAVEGEN_CHANNEL,
+#                             WAVEGEN_PULSE_WIDTH, 
+#                             WAVEGEN_WAIT_TIME,
+#                             WAVEGEN_N_ACQUISITIONS,
+#                             WAVEGEN_PULSE_AMPLITUDE,
+#                             )
+
+
+# TODO START HERE
+setpulse_sine_n_cycles(dwf,
+                       hdwf,
+                       WAVEGEN_CHANNEL,
+                       3,  # TODO NOT YET IMPLEMENTED
+                       5,
+                       v_offset=0,
+                       plot=False,
+                       )
 
 # TODO may need a TR counter or a timeout (ie. if we lose some pings, when do we stop?)
 # TODO is there a wavegen off trigger? ie. when the automatic pulse train stops????
