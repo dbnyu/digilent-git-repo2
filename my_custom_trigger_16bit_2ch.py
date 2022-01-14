@@ -28,6 +28,19 @@
     Doug Brantner 12/2/2021
 """
 
+# TODO - naming scheme:
+#   NO underscores in filenames EXCEPT for two, in specified places:
+#       to isolate the description & suffix:
+#       <date> - <time> _ <description> _ <suffix>.csv
+#           (spaces shown for clarity)
+#   Filename suffixes:
+#       - actual scope data: <name>_data.csv    # TODO add this!
+#       - voltage conversion data: <name>_vconv.csv # TODO update this!
+#       - all other acquisition settings: <name>_settings.csv
+raise NotImplementedError('Update filenames!')
+
+# TODO - expand to larger echo time (buffer size) (max out 8k buffer and then 16k buffer)
+
 
 # TODO - make the trigger appear at the start of the acquisition, not the middle
 #       - TODO maybe some pre-record for scope/pulse sync evaluation...
@@ -120,7 +133,9 @@ currentTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 fname_prefix = '%s_%s' % (currentTime, description)
 data_filename =   os.path.join(folderPath, (fname_prefix + '.csv'))
-params_filename = os.path.join(folderPath, (fname_prefix + '_params.csv'))
+params_filename = os.path.join(folderPath, (fname_prefix + '_params.csv')) # TODO rename this! to clarify voltage conversion values vs. scope settings?
+settings_filename =  os.path.join(folderPath, (fname_prefix + '_settings.csv'))
+# TODO filename for pulse/scope settings
 
 
 print(data_filename)
@@ -170,10 +185,15 @@ def saveData(myWave1, myWave2):
     #print('\nfile written at' + available_filename)
 
 
+# TODO max out buffer to 16k input - max out time window!
+# TODO set ch1 range to 5V to really analyze the internal transducer ringing...
+# TODO look for a return echo @ 2x time of 180deg sensor...
 
 # Pulser Parameters:
 WAVEGEN_PULSE_TYPE = 'SQUARE_PULSE_1'
 #WAVEGEN_PULSE_TYPE = 'SINE_N_CYCLES'
+
+
 
 # WAVEGEN_N_ACQUISITIONS sets the number of pulses generated, which also determines the number of acquisitions (and run time)
 # User Editable:
@@ -182,13 +202,15 @@ WAVEGEN_PULSE_TYPE = 'SQUARE_PULSE_1'
 WAVEGEN_N_ACQUISITIONS = 10        # number of pulse/echo repetitions to acquire
 WAVEGEN_WAIT_TIME = 0.01            # seconds between acquisiztions (== TR period, also serves as trigger/acquisition interval)
 WAVEGEN_PULSE_WIDTH = 0.5e-6          # pulse width in seconds (???) TODO CHECK THIS (confirm w/ scope)
+#WAVEGEN_PULSE_WIDTH = 1e-6          # pulse width in seconds
 # TODO should pulse width be 1/2 usec?
 WAVEGEN_PULSE_AMPLITUDE = 5.0       # voltage for pulse
+#WAVEGEN_PULSE_AMPLITUDE = 2.5       # voltage for pulse
 WAVEGEN_PULSE_V_OFFSET  = 0.        # voltage offset for pulse
 WAVEGEN_CHANNEL = 0                 # which output channel to use for pulses (0 or 1)
 
 # This is for N cycles of sine wave:
-WAVEGEN_SINE_N_CYCLES = 10          # number of cycles (sine wave pulse only)
+WAVEGEN_SINE_N_CYCLES = 10   # number of cycles (sine wave pulse only)
 
 # Recording Parameters:
 # From AnalogIn_Trigger.py
@@ -300,6 +322,82 @@ print()
 
 print('User-Editable Settings (BEFORE):')
 ad2.print_scope_settings(dwf, hdwf)
+
+
+def compile_pulse_params():
+    """Return lists of all scope parameters.
+            names = variable names as strings
+            vals = values 
+    """
+    # TODO not yet implemented - try uzing 'zip'? 
+    # idea is to make this able to save to CSV (horizontally)
+    # or print (vertically)
+    pass
+
+
+def save_ad2_settings(filepath):
+    """Save a CSV file of pulse & scope parameters.
+
+        NOTE that these are scope params as assigned by user.
+        This is NOT the actual scope voltage range/offset used
+            to compute the voltages from int16 values.
+            Those are in a separate file.
+    """
+
+    csv_headers = ','.join([
+        'WAVEGEN_PULSE_TYPE',   # output params
+        'WAVEGEN_N_ACQUISITIONS',
+        'WAVEGEN_WAIT_TIME',
+        'WAVEGEN_PULSE_WIDTH',
+        'WAVEGEN_PULSE_AMPLITUDE',
+        'WAVEGEN_PULSE_V_OFFSET',
+        'WAVEGEN_CHANNEL',
+        'WAVEGEN_SINE_N_CYCLES',
+        # input params below:
+        'INPUT_SAMPLE_RATE',
+        'INPUT_SINGLE_ACQUISITION_TIME',
+        'INPUT_TRIGGER_POSITION_TIME',
+        'SCOPE_TRIGGER_VOLTAGE',
+        'SCOPE_VOLT_RANGE_CH1',
+        'SCOPE_VOLT_OFFSET_CH1',
+        'SCOPE_VOLT_RANGE_CH2',
+        'SCOPE_VOLT_OFFSET_CH2',
+        # computed params:
+        'INPUT_SAMPLE_SIZE',
+        'INPUT_SAMPLE_PERIOD',
+        ])
+
+    csv_data = ','.join([ str(val) for val in [
+        WAVEGEN_PULSE_TYPE, # output params
+        WAVEGEN_N_ACQUISITIONS,
+        WAVEGEN_WAIT_TIME,
+        WAVEGEN_PULSE_WIDTH,
+        WAVEGEN_PULSE_AMPLITUDE,
+        WAVEGEN_PULSE_V_OFFSET,
+        WAVEGEN_CHANNEL,
+        WAVEGEN_SINE_N_CYCLES,
+        # input params below:
+        INPUT_SAMPLE_RATE,
+        INPUT_SINGLE_ACQUISITION_TIME,
+        INPUT_TRIGGER_POSITION_TIME,
+        SCOPE_TRIGGER_VOLTAGE,
+        SCOPE_VOLT_RANGE_CH1,
+        SCOPE_VOLT_OFFSET_CH1,
+        SCOPE_VOLT_RANGE_CH2,
+        SCOPE_VOLT_OFFSET_CH2,
+        # computed params:
+        INPUT_SAMPLE_SIZE,
+        INPUT_SAMPLE_PERIOD,
+        ]])
+
+    with open(filepath, 'w') as f:
+        f.write(csv_headers)
+        f.write('\n')
+        f.write(csv_data)
+
+
+
+
 
 
 # Wavegen Output
@@ -507,7 +605,7 @@ double_stride = INPUT_SAMPLE_SIZE * sizeof(c_double)
 # TODO - will the buffer be zero'd on a timeout, or is it possible to have a false second reading of the previous buffer?
 
 
-
+amplitude = 5.0
 # From AnalogIn_Trigger.py:
 for iTrigger in range(WAVEGEN_N_ACQUISITIONS):  # TODO this should be until big_buffer is filled (or N_acquistions)
 
@@ -553,6 +651,11 @@ for iTrigger in range(WAVEGEN_N_ACQUISITIONS):  # TODO this should be until big_
     acquisition_data_index += acquisition_data_stride 
 
 
+    # try decreasing the voltage each iteration: (does not work!)
+    #amplitude /= 2.0
+    #dwf.FDwfAnalogOutNodeAmplitudeSet(hdwf, c_int(0), AnalogOutNodeCarrier, c_double(amplitude))
+
+
 
 print('Number of loops: %d' % iTrigger)
 print('Done...')
@@ -593,6 +696,11 @@ saveData(acquisition_data_ch1, acquisition_data_ch2)
 
 print('Saving scope params metadata...')
 scope_params.write_param_file(params_filename)
+
+print('Saving scope settings...')
+save_ad2_settings(settings_filename)
+
+
 
 
 print('full record time: %f sec' % BIG_BUFFER_FULL_TIME)
