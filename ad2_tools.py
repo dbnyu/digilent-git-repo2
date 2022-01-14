@@ -196,6 +196,12 @@ def check_and_print_error(dwf, throw=False):
         if throw:
             raise(RuntimeError, s)
 
+
+
+
+
+# scope setup & value conversion:
+
 def int16signal2voltage(data_int16, v_range, v_offset, verbose=False):
     """Math-only int16 to volts conversion.
 
@@ -299,7 +305,39 @@ def get_volts_from_int16(dwf, hdwf, channel, data_int16, v_range=None, v_offset=
 
 
 
+def calc_trigger_pos_from_index(index_offset, dt, acq_time):
+    """Return a time offset value for trigger position, for Waveforms SDK.
 
+        index_offset = number of positions to offset the trigger time [int]
+                ie. 10 = set the trigger to start on the 10th sample
+                -----> 10 samples of pre-roll, then the trigger & actual acquisition
+
+                set index = 0 for trigger to fall on the first sample
+                            i.e. no pre-roll
+
+        dt = time period for 1 sample (ie. 1/sample frequency) [seconds]
+        acq_time = time duration of 1 full acquisition [seconds]
+
+        Returns:
+        trigger_position_time, the time value to shift the trigger from the
+            center of the acquisition toward the beginning
+            (ie. a positive offset will start the trigger earlier in the buffer)
+            use this as input to FDwfAnalogInTriggerPositionSet()
+
+        NOTE this is approximate since it's based on dt values so may be off by 1 or so...
+    """
+    # TODO can't take a ceiling of offset_time because it's probably microseconds << 1
+    # but any way to nudge an off-by-one higher (ie. maximize the buffer offset toward +1 sample?)
+    offset_time = index_offset * dt
+    trigger_position_time = 0.5 * acq_time  # default trigger is middle of the buffer
+    trigger_position_time -= offset_time
+
+    # TODO bounds check? this probably should be >= 0
+    return trigger_position_time 
+
+
+
+# scope parameters access/printing: (see also class 
 
 def print_scope_capabilities(dwf, hdwf):
     """Print static info on the scope (ie. min/max possible voltage range)
