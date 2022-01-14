@@ -1,5 +1,13 @@
 # Analog Discovery 2 Ultrasound Project
 
+## Requirements
+- Digilent Waveforms software
+  - any other drivers?
+- Python
+  - tested on Anaconda ```conda 4.10.3```, ```Python 3.7.6``` on Windows 10
+  - running python via command line in Powershell.
+
+
 ## Helper Functions
 - see [ad2_tools.py](ad2_tools.py) for some wrapper/ helper functions for the Waveforms SDK (dwf) and ctypes variables
   - converting int16 -> double values
