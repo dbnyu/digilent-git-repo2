@@ -21,6 +21,13 @@
             in order to get the 5V signal (because the input range is PEAK TO PEAK, so 
             the 5V range only gives +/-2.5 volt output range.
 
+    AD2 Max Buffer Sizes:
+    - default 8k setting = 8192 = (2^13) samples (each channel)
+    - extended 16k setting = 16384 = (2^14) samples 
+        - based on max buffer size here:
+          https://digilent.com/reference/test-and-measurement/analog-discovery-2/start
+
+
     Using AnalogOut_Pulse.py
     and
     AnalogIn_Trigger.py
@@ -196,6 +203,8 @@ WAVEGEN_PULSE_TYPE = 'SQUARE_PULSE_1'
 
 # WAVEGEN_N_ACQUISITIONS sets the number of pulses generated, which also determines the number of acquisitions (and run time)
 # User Editable:
+
+# SQUARE SINGLE PULSE:
 # This is for a single positive-going rectangular pulse, that is repeated every 'wait time'
 # (some params are shared with sinewave N cycles)
 WAVEGEN_N_ACQUISITIONS = 10        # number of pulse/echo repetitions to acquire
@@ -208,23 +217,31 @@ WAVEGEN_PULSE_AMPLITUDE = 5.0       # voltage for pulse
 WAVEGEN_PULSE_V_OFFSET  = 0.        # voltage offset for pulse
 WAVEGEN_CHANNEL = 0                 # which output channel to use for pulses (0 or 1)
 
+# SINE WAVE REPEATED N CYCLES:
 # This is for N cycles of sine wave:
 WAVEGEN_SINE_N_CYCLES = 10   # number of cycles (sine wave pulse only)
+
+
 
 # Recording Parameters:
 # From AnalogIn_Trigger.py
 # User Editable:
 # NOTE: AD2 will limit sample rates > 100Mhz without any warning.
 INPUT_SAMPLE_RATE = 10e6      # Hz 
-INPUT_SINGLE_ACQUISITION_TIME = 200e-6        # time to record a single echo (seconds)
-INPUT_TRIGGER_POSITION_TIME = 0.99 * 0.5 * INPUT_SINGLE_ACQUISITION_TIME  # seconds, trigger position within the acquisition window; default is center (t=0) which wastes 1/2 the buffer
+# NEW: acq time is now secondary/dependent on buffer size (INPUT_SAMPLE_SIZE)
+#INPUT_SINGLE_ACQUISITION_TIME = 200e-6        # time to record a single echo (seconds)
+INPUT_SAMPLE_SIZE = 8192    # sample buffer size (# of samples per acquisition)
+
+#NEW: setting this based on # of samples desired to have before trigger
+INPUT_TRIGGER_POSITION_INDEX = 10   # offset in sample indexes where trigger should start
+# ie. 10 samples of pre-roll before trigger, so trigger rising edge is not cut off & clear for analysis (note this gets converted to a time value so it may not be the exact index in the data)
+#INPUT_TRIGGER_POSITION_TIME = 0.99 * 0.5 * INPUT_SINGLE_ACQUISITION_TIME  # seconds, trigger position within the acquisition window; default is center (t=0) which wastes 1/2 the buffer
 #       0.5 * acq_time = move trigger to beginning of acquisition window 
 #               - so that trigger instant is the first sample
 #       0.99 * above = allow 1usec of dead time "pre-roll" before trigger
 #               - so that we can see 1 pulse period of "intentional nothing" before trigger/pulse
 #                   so we can be sure the triggers are perfectly in sync (ie. ensure we capture the correct rising edge)
 #               - 0.99 assumes 200usec window so that 1/2 is 100usec and 99% of 100 == 99usec, so there is 1usec of dead pre-roll time in the beginning.
-# TODO - double check trigger position/delay after updating new waveforms (sine N cycles)!!!!
 
 SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
 
@@ -241,9 +258,15 @@ SCOPE_VOLT_OFFSET_CH2 = 0.      # ch2 - volts   # TODO not yet implemented
 
 # internal recording parameters:
 # for a single acquisition:
-INPUT_SAMPLE_SIZE = int(INPUT_SAMPLE_RATE * INPUT_SINGLE_ACQUISITION_TIME)     # buffer size for 1 acquisition
-INPUT_SAMPLE_PERIOD = 1. / INPUT_SAMPLE_RATE    # seconds per acquired sample
+# making INPUT_SAMPLE_SIZE the primary input now instead of  INPUT_SINGLE_ACQUISITION_TIME:
+#INPUT_SAMPLE_SIZE = int(INPUT_SAMPLE_RATE * INPUT_SINGLE_ACQUISITION_TIME)     # buffer size for 1 acquisition
+INPUT_SAMPLE_PERIOD = 1. / INPUT_SAMPLE_RATE    # seconds per acquired sample (aka. sample dt)
+INPUT_SINGLE_ACQUISITION_TIME = INPUT_SAMPLE_SIZE / INPUT_SAMPLE_RATE # time duration of 1 full acquisition (sec)
 
+INPUT_TRIGGER_POSITION_TIME = ad2.calc_trigger_pos_from_index(INPUT_TRIGGER_POSITION_INDEX,
+                                                              INPUT_SAMPLE_PERIOD,
+                                                              INPUT_SINGLE_ACQUISITION_TIME 
+                                                              )
 
 # NOTE - for now, ch 1 is the 'main recording channel' so only keeping track of ch1 status... assuming ch2. is 'in sync' with it, but we only care about the beginning of the ch2 signal anyway to see if the triggers/excitation pulses are in sync...
 scope_status = c_byte()  # scope channel 1 status
@@ -319,8 +342,8 @@ print('\n\n')
 ad2.print_scope_capabilities(dwf, hdwf)
 print()
 
-print('User-Editable Settings (BEFORE):')
-ad2.print_scope_settings(dwf, hdwf)
+#print('User-Editable Settings (BEFORE):') # this doesn't work without scope enabled!
+#ad2.print_scope_settings(dwf, hdwf)
 
 
 def compile_pulse_params():
@@ -481,6 +504,27 @@ def setpulse_sine_n_cycles(dwf, hdwf, channel, n_cycles, amplitude, v_offset=0, 
     dwf.FDwfAnalogOutRepeatSet(hdwf, channel, timesToRepeat) 
 
 
+# Oscilloscope Setup:
+
+# set buffer size from desired time -OR- set buffer size explicitly:
+def set_buffer_size_from_time(t):
+    """Set acquisition buffer size based on desired time window.
+    """
+    raise NotImplementedError()
+    pass
+
+# TODO this and set_buffer_size(n):
+#   """Set buffer size to n samples."""
+#       TODO expand memory if necessary.
+
+
+
+
+
+
+# END OF FUNCTION DEFINITIONS
+# MAIN CODE:
+
 
 if WAVEGEN_PULSE_TYPE == 'SQUARE_PULSE_1':
     print('Wavegen: Single Square Pulse')
@@ -559,8 +603,8 @@ dwf.FDwfAnalogInTriggerPositionSet(hdwf, c_double(INPUT_TRIGGER_POSITION_TIME))
 #dwf.FDwfAnalogInTriggerConditionSet(hdwf, DwfTriggerSlopeEither) 
 
 
-print('\nScope Settings (AFTER setup):')
-ad2.print_scope_settings(dwf, hdwf)
+#print('\nScope Settings (AFTER setup):') # this also doesn't work if scope is not enabled
+#ad2.print_scope_settings(dwf, hdwf)
 
 
 print('\n')
@@ -784,8 +828,18 @@ print('\n\n')
 #plt.plot(pseudotimescale, acquisition_data_ch1[:], '.-', label='Ch1 (int16)')
 #plt.plot(pseudotimescale, acquisition_data_ch2[:], '.-', label='Ch2 (int16)')
 
+
+
 # plot proper voltages against indexes
 #plt.plot(voltage_ch1, '.-', label='Ch. 1 (V)')
+#plt.plot(voltage_ch2, '.-', label='Ch. 2 (V)')
+#plt.title('Voltage vs. Index')
+#plt.xlabel('Index')
+#plt.ylabel('Volts')
+#plt.legend()
+#plt.show()
+
+
 
 # plot proper voltages against pseudo-time
 plt.plot(pseudotimescale, voltage_ch1, '.-', label='Ch. 1 (V)')
@@ -807,17 +861,17 @@ plt.show()
 
 #################
 # Plot error:
-plt.plot(difference, '.-', label='Ch2 - Ch1')
-plt.title('Error @ %.2e Hz Sample Rate (%.2e s window)' % (INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
-plt.xlabel('Seconds (TR delays not shown!)')
-plt.ylabel('Voltage')
-plt.legend()
-plt.show()
+#plt.plot(difference, '.-', label='Ch2 - Ch1')
+#plt.title('Error @ %.2e Hz Sample Rate (%.2e s window)' % (INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
+#plt.xlabel('Seconds (TR delays not shown!)')
+#plt.ylabel('Voltage')
+#plt.legend()
+#plt.show()
 
 
 #################
 # Bland-Altman of ch1 vs. ch2
-ad2.bland_altman(voltage_ch1, voltage_ch2)
+#ad2.bland_altman(voltage_ch1, voltage_ch2)
 
 
 
