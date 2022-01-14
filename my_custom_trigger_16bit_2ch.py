@@ -330,8 +330,7 @@ if hdwf.value == hdwfNone.value:
 
 scope_params = ad2.ScopeParams(dwf, hdwf)
 
-print('testing my error function:')
-print(ad2.get_error(dwf) + '\n')
+print('Testing error function: ' + ad2.get_error(dwf) + '\n')
 
 # the device will be configured only when calling FDwfAnalogOutConfigure
 dwf.FDwfDeviceAutoConfigureSet(hdwf, c_int(0))
@@ -339,11 +338,9 @@ dwf.FDwfDeviceAutoConfigureSet(hdwf, c_int(0))
 
 print('\n\n')
 
-ad2.print_scope_capabilities(dwf, hdwf)
-print()
+#ad2.print_scope_capabilities(dwf, hdwf)
+#print()
 
-#print('User-Editable Settings (BEFORE):') # this doesn't work without scope enabled!
-#ad2.print_scope_settings(dwf, hdwf)
 
 
 def compile_pulse_params():
@@ -743,13 +740,15 @@ scope_params.write_vconv_file(vconv_filename)
 print('Saving scope settings...')
 save_ad2_settings(settings_filename)
 
+print('\n')
 
 
-
-print('full record time: %f sec' % BIG_BUFFER_FULL_TIME)
-print('full record N samples: %d' % big_output_len) 
+print('INPUT_SAMPLE_RATE: %e MHz' % (INPUT_SAMPLE_RATE*1e-6))
+print('1 acqusition time: %e sec (%e usec)' % (INPUT_SINGLE_ACQUISITION_TIME, INPUT_SINGLE_ACQUISITION_TIME*1e6))
+print('full record time : %f sec' % BIG_BUFFER_FULL_TIME) 
+print()
 print('INPUT_SAMPLE_SIZE: %d (for 1 acquisition)' % INPUT_SAMPLE_SIZE)
-print('INPUT_SAMPLE_RATE %f' % INPUT_SAMPLE_RATE )
+print('full record N samples: %d' % big_output_len) 
 
 approx_usb_bitrate = (16 * big_output_len) / BIG_BUFFER_FULL_TIME   # assuming data is transported as 2-byte values
 print('approx USB bitrate: %f bits/sec' % approx_usb_bitrate)
@@ -844,13 +843,8 @@ print('\n\n')
 # plot proper voltages against pseudo-time
 plt.plot(pseudotimescale, voltage_ch1, '.-', label='Ch. 1 (V)')
 plt.plot(pseudotimescale, voltage_ch2, '.-', label='Ch. 2 (V)')
-
 plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (WAVEGEN_N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
-
-#plt.xlabel('Index')
 plt.xlabel('Seconds (TR delays not shown!)')
-
-#plt.ylabel('int16 "voltage"')
 plt.ylabel('Volts')
 plt.legend()
 #plt.xlim([0, 1000e-6])
