@@ -29,15 +29,15 @@
 """
 
 # TODO - naming scheme:
-#   NO underscores in filenames EXCEPT for two, in specified places:
+#   NO underscores in filenames EXCEPT for two, in specified places: TODO check this user input!
 #       to isolate the description & suffix:
 #       <date> - <time> _ <description> _ <suffix>.csv
 #           (spaces shown for clarity)
 #   Filename suffixes:
-#       - actual scope data: <name>_data.csv    # TODO add this!
-#       - voltage conversion data: <name>_vconv.csv # TODO update this!
+#       - actual scope data: <name>_data.csv
+#       - voltage conversion data: <name>_vconv.csv
 #       - all other acquisition settings: <name>_settings.csv
-raise NotImplementedError('Update filenames!')
+
 
 # TODO - expand to larger echo time (buffer size) (max out 8k buffer and then 16k buffer)
 
@@ -69,7 +69,6 @@ raise NotImplementedError('Update filenames!')
 #       - TODO are these speed status calls valid for Scope USB speed???
 #       - TODO can this be used to get live USB transport speed status???
 
-# TODO - try the 
 
 # TODO - from AnalogIn_Record_Trigger_int16.py:
 #        plt.plot(numpy.fromiter(rgSamples1, dtype = numpy.int16))
@@ -132,9 +131,9 @@ append_pulse_info = args.pulseinfo  # TODO not yet implemented
 currentTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 fname_prefix = '%s_%s' % (currentTime, description)
-data_filename =   os.path.join(folderPath, (fname_prefix + '.csv'))
-params_filename = os.path.join(folderPath, (fname_prefix + '_params.csv')) # TODO rename this! to clarify voltage conversion values vs. scope settings?
-settings_filename =  os.path.join(folderPath, (fname_prefix + '_settings.csv'))
+data_filename =   os.path.join(folderPath, (fname_prefix + '_data.csv'))    # actual acquisition data
+vconv_filename = os.path.join(folderPath, (fname_prefix + '_vconv.csv'))    # voltage conversion settings
+settings_filename =  os.path.join(folderPath, (fname_prefix + '_settings.csv')) # all other settings
 # TODO filename for pulse/scope settings
 
 
@@ -695,7 +694,7 @@ print('Saving raw int16 data...')
 saveData(acquisition_data_ch1, acquisition_data_ch2)
 
 print('Saving scope params metadata...')
-scope_params.write_param_file(params_filename)
+scope_params.write_vconv_file(vconv_filename)
 
 print('Saving scope settings...')
 save_ad2_settings(settings_filename)

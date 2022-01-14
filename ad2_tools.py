@@ -102,8 +102,11 @@ class ScopeParams():
 
         # TODO print function
 
-    def write_param_file(self, filepath):
-        """Write settings to file.
+    def write_vconv_file(self, filepath):
+        """Write voltage conversion settings to file.
+
+            This includes *most* but not all of the Oscilloscope input settings;
+            enough to properly convert raw int16 values to correct voltage values.
 
             filepath = full path including filename & extension (should be .csv)
 
