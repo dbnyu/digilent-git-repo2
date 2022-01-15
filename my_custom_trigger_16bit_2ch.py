@@ -196,8 +196,8 @@ def saveData(myWave1, myWave2):
 # TODO look for a return echo @ 2x time of 180deg sensor...
 
 # Pulser Parameters:
-WAVEGEN_PULSE_TYPE = 'SQUARE_PULSE_1'
-#WAVEGEN_PULSE_TYPE = 'SINE_N_CYCLES'
+#WAVEGEN_PULSE_TYPE = 'SQUARE_PULSE_1'
+WAVEGEN_PULSE_TYPE = 'SINE_N_CYCLES'
 
 
 
@@ -219,7 +219,8 @@ WAVEGEN_CHANNEL = 0                 # which output channel to use for pulses (0 
 
 # SINE WAVE REPEATED N CYCLES:
 # This is for N cycles of sine wave:
-WAVEGEN_SINE_N_CYCLES = 10   # number of cycles (sine wave pulse only)
+#WAVEGEN_SINE_N_CYCLES = 10   # number of cycles (sine wave pulse only)
+WAVEGEN_SINE_N_CYCLES = 3   # number of cycles (sine wave pulse only)
 
 
 
@@ -230,7 +231,9 @@ WAVEGEN_SINE_N_CYCLES = 10   # number of cycles (sine wave pulse only)
 INPUT_SAMPLE_RATE = 10e6      # Hz 
 # NEW: acq time is now secondary/dependent on buffer size (INPUT_SAMPLE_SIZE)
 #INPUT_SINGLE_ACQUISITION_TIME = 200e-6        # time to record a single echo (seconds)
-INPUT_SAMPLE_SIZE = 8192    # sample buffer size (# of samples per acquisition)
+
+#INPUT_SAMPLE_SIZE = 8192    # sample buffer size (# samples per acquisition) MAX for default memory config
+INPUT_SAMPLE_SIZE = 16384   # sample buffer size (# of samples per acquisition) MAX for extended memory config
 
 #NEW: setting this based on # of samples desired to have before trigger
 INPUT_TRIGGER_POSITION_INDEX = 10   # offset in sample indexes where trigger should start
@@ -245,7 +248,7 @@ INPUT_TRIGGER_POSITION_INDEX = 10   # offset in sample indexes where trigger sho
 
 SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
 
-SCOPE_VOLT_RANGE_CH1 = 50.0      # oscilloscope ch1 input range (volts)
+SCOPE_VOLT_RANGE_CH1 = 5.0      # oscilloscope ch1 input range (volts)
 SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not yet implemented (probably not needed; zero is preferred)
 
 SCOPE_VOLT_RANGE_CH2 = 5.0      # ch2 - volts
@@ -269,6 +272,7 @@ INPUT_TRIGGER_POSITION_TIME = ad2.calc_trigger_pos_from_index(INPUT_TRIGGER_POSI
                                                               )
 
 # NOTE - for now, ch 1 is the 'main recording channel' so only keeping track of ch1 status... assuming ch2. is 'in sync' with it, but we only care about the beginning of the ch2 signal anyway to see if the triggers/excitation pulses are in sync...
+# TODO (above is not fully correct - seems like this is global status for both channels - double check docs!)
 scope_status = c_byte()  # scope channel 1 status
 
 
@@ -278,7 +282,6 @@ scope_status = c_byte()  # scope channel 1 status
 big_output_len = int(int(INPUT_SAMPLE_SIZE) * int(WAVEGEN_N_ACQUISITIONS))
 
 # NOTE - we are recording int16 type samples; needs to be converted to voltage/double type in post-processing.
-#big_output_buffer = (c_int16 * big_output_len)()
 acquisition_data_ch1 = (c_int16 * big_output_len)()    # channel 1 main acquisition buffer (over full recording time)
 acquisition_data_ch2 = (c_int16 * big_output_len)()    # channel 2 main acquisition buffer (over full recording time)
 
@@ -286,7 +289,6 @@ acquisition_data_ch2 = (c_int16 * big_output_len)()    # channel 2 main acquisit
 #double_data_ch1 = (c_double * big_output_len)()    # channel 1
 #double_data_ch2 = (c_double * big_output_len)()    # channel 2
 
-#print_array(big_output_buffer, 0)
 
 
 # TODO double check these:
@@ -318,8 +320,13 @@ dwf.FDwfParamSet(DwfParamOnClose, c_int(0)) # 0 = run, 1 = stop, 2 = shutdown
 
 #open device
 print("Opening first device...")
-dwf.FDwfDeviceOpen(c_int(-1), byref(hdwf))
+#dwf.FDwfDeviceOpen(c_int(-1), byref(hdwf)) # default settings
+dwf.FDwfDeviceConfigOpen(c_int(-1),c_int(1),byref(hdwf))    # memory config #2 - 16k samples
+
 # TODO set config for memory (see AnalogIn_Trigger.py)
+# TODO try FDwfDeviceConfigOpen
+
+
 # TODO print buffer sizes!
 
 if hdwf.value == hdwfNone.value:
@@ -743,8 +750,8 @@ save_ad2_settings(settings_filename)
 print('\n')
 
 
-print('INPUT_SAMPLE_RATE: %e MHz' % (INPUT_SAMPLE_RATE*1e-6))
-print('1 acqusition time: %e sec (%e usec)' % (INPUT_SINGLE_ACQUISITION_TIME, INPUT_SINGLE_ACQUISITION_TIME*1e6))
+print('INPUT_SAMPLE_RATE: %f MHz' % (INPUT_SAMPLE_RATE*1e-6))
+print('1 acqusition time: %e sec (%f usec)' % (INPUT_SINGLE_ACQUISITION_TIME, INPUT_SINGLE_ACQUISITION_TIME*1e6))
 print('full record time : %f sec' % BIG_BUFFER_FULL_TIME) 
 print()
 print('INPUT_SAMPLE_SIZE: %d (for 1 acquisition)' % INPUT_SAMPLE_SIZE)
@@ -772,18 +779,6 @@ pseudotimescale = INPUT_SAMPLE_PERIOD * np.arange(big_output_len)
 #sys.exit()
 
 
-# rescale raw int16 signals to proper voltages (float type):
-#voltage_ch1 = int16signal2voltage(acquisition_data_ch1, SCOPE_VOLT_RANGE_CH1, SCOPE_VOLT_OFFSET_CH1);
-#voltage_ch2 = int16signal2voltage(acquisition_data_ch2, SCOPE_VOLT_RANGE_CH2, SCOPE_VOLT_OFFSET_CH2);
-# TODO test this - pulse seems like only 2.5V not 5V??? 
-
-# NOTE - if calling voltage range/offset, need to do this BEFORE closing the hdwf device!!!
-#voltage_ch1 = ad2.int16signal2voltage(dwf, hdwf, 0, acquisition_data_ch1, v_range=5, v_offset=0)
-#voltage_ch2 = ad2.int16signal2voltage(dwf, hdwf, 1, acquisition_data_ch2, v_range=5, v_offset=0)
-
-# moved to library:
-#voltage_ch1 = int16signal2voltage(hdwf, 0, acquisition_data_ch1)
-#voltage_ch2 = int16signal2voltage(hdwf, 1, acquisition_data_ch2)
 
 
 
@@ -820,6 +815,31 @@ if np.max(difference) == 0:
 
 print('\n\n')
 
+
+
+
+
+
+### Plotting ###
+# speed of sound values from https://itis.swiss/virtual-population/tissue-properties/database/acoustic-properties/speed-of-sound/
+C_WATER = 1482.3    # m/s
+C_AIR = 343.0       # m/s
+
+C = C_WATER
+
+def time2mm(t):
+    """Convert time to millimeters using global C speed of sound.
+        t = time [sec]
+    """
+    return 1000. * C * t
+
+def mm2time(d):
+    """Convert millimeters to time [sec], using global C.
+        d = distance array [mm]
+    """
+    return (1. / (1000. * C)) * d
+
+
 # plot int16 values against indexes
 #plt.plot(acquisition_data_ch1[:], '.-', label='Ch1 (int16)')    
 
@@ -851,7 +871,24 @@ plt.legend()
 plt.show()
 
 
+# plot distance and time together (voltage)
+fix, ax = plt.subplots()
+distscale = time2mm(pseudotimescale)
+#ax.plot(pseudotimescale, voltage_ch1, '.-', label='Ch. 1 (V)')
+#ax.plot(pseudotimescale, voltage_ch2, '.-', label='Ch. 2 (V)')
+ax.plot(distscale, voltage_ch1, '.-', label='Ch. 1 (V)')
+ax.plot(distscale, voltage_ch2, '.-', label='Ch. 2 (V)')
+ax.legend()
+plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (WAVEGEN_N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
+#ax.set_xlabel('Time [sec] (TR waits omitted)')
+ax.set_xlabel('Distance [mm] (take diffs!)')
+ax.set_ylabel('Volts')    
 
+#ax2 = ax.secondary_xaxis('top', functions=(time2mm, mm2time))
+ax2 = ax.secondary_xaxis('top', functions=(mm2time, time2mm))
+ax2.set_xlabel('Time [sec] (TR waits omitted)')
+#ax2.set_xlabel('Distance [mm] (diffs only!)')
+plt.show()
 
 #################
 # Plot error:
