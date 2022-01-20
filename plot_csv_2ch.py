@@ -15,6 +15,14 @@ import sys
 import os
 
 
+C_WATER = 1482.3    # m/s
+MEDIUM = 'water'
+
+#C_AIR = 343.0       # m/s
+#MEDIUM = 'air'
+
+
+
 filepath = sys.argv[1]
 #parser = argparse.ArgumentParser(description='Plot 2-channel int16 files.')
 #parser.add_argument('filepath', metavar='f', type=str, help='file to plot')
@@ -75,6 +83,12 @@ except FileNotFoundError as e:
 #print(data.head())
 
 
+distscale = 1000 * data.Time * C_WATER  # convert to mm
+
+
+
+
+
 plt.plot(data.Time, data.ch1_volts, '.-', label='Ch1 (V)')
 plt.plot(data.Time, data.ch2_volts, '.-', label='Ch2 (V)')
 plt.xlabel('Time (sec - TR delays omitted!)')
@@ -86,17 +100,41 @@ plt.show()
 
 
 
+# plot 2 channels as separate subplots
+# distance as X axis; linked zoom on x axis:
+# https://stackoverflow.com/questions/4200586/matplotlib-pyplot-how-to-zoom-subplots-together
+ax_ch1 = plt.subplot(2, 1, 1)
+ax_ch1.plot(distscale, data.ch1_volts, '.-', label='Ch. 1 (V)')
+
+#plt.title('%s @ SR=%.2e Hz (TR=%.2e s)' % (file_desc, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
+plt.title('%s' % file_desc)
+
+ax_ch2 = plt.subplot(2, 1, 2, sharex=ax_ch1)
+ax_ch2.plot(distscale, data.ch2_volts, '.-', color='tab:orange', label='Ch. 2 (V)')
+
+ax_ch1.set_xlabel('Distance [mm] (take diffs!)')
+ax_ch2.set_xlabel('Distance [mm] (take diffs!)')
+ax_ch1.set_ylabel('Ch. 1 Volts')    
+ax_ch2.set_ylabel('Ch. 2 Volts')    
+#plt.title('Signals Shown Separately')
+plt.show()
+
+
+
+
+
+# TODO - come back to this!
 # M-Mode (1 channel at a time):
 # TODO NOTE this needs the TR_len to be updated for each file...
-ad2.plot_m_mode(ad2.reshape_to_M_mode(data.ch1_volts, 8000, 0), 
-                title=file_desc + ' Ch1',
-                #title=os.path.basename(filepath) + ' Ch1',
-                ignore_rows=1000
-                )
-                
-
-ad2.plot_m_mode(ad2.reshape_to_M_mode(data.ch2_volts, 8000, 0), 
-                title=file_desc + ' Ch2',
-                #title=os.path.basename(filepath) + ' Ch2',
-                ignore_rows=1000
-                )
+#ad2.plot_m_mode(ad2.reshape_to_M_mode(data.ch1_volts, 8000, 0), 
+#                title=file_desc + ' Ch1',
+#                #title=os.path.basename(filepath) + ' Ch1',
+#                ignore_rows=1000
+#                )
+#                
+#
+#ad2.plot_m_mode(ad2.reshape_to_M_mode(data.ch2_volts, 8000, 0), 
+#                title=file_desc + ' Ch2',
+#                #title=os.path.basename(filepath) + ' Ch2',
+#                ignore_rows=1000
+#                )
