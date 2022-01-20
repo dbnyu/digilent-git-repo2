@@ -117,9 +117,24 @@ import ad2_tools as ad2       # my library
 # TODO look at trigger holdout (ignore time after initial trigger) - may need to update!
 
 # TODO need a way to trigger the acquisition if using discrete inputs/Rx transducers and isolated wavegen as separate Tx!!!!
-# TODO update plot title based on description... most of the title info is not really useful anymore.
 # TODO same subplot w/ synced zoom for re-opening saved CSV files
-# TODO check description for underscores... breaks file open parser
+
+
+def check_description(s):
+    """Check file description & return false if it's invalid.
+
+        s = string (ie. file description)
+
+        Looking for:
+        - no underscores in description (only allowed in specific places in filename for later parsing when reading files)
+        - TBD...?
+
+    Returns true if description is valid; false otherwise.
+    """
+    if '_' in s:
+        print("\nWARNING: File Description cannot contain underscores '_'")
+        return False
+    return True
 
 
 parser = argparse.ArgumentParser(description='Analog Discovery 2, 16-bit 2-ch  Ultrasound Acquisition')
@@ -133,6 +148,13 @@ folderPath = args.folder
 description = args.desc
 append_pulse_info = args.pulseinfo  # TODO not yet implemented
 
+
+# Check User Input:
+if not check_description(description):
+    print('ERROR - INVALID FILENAME - Quitting.\n')
+    sys.exit(1)
+
+
 currentTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 fname_prefix = '%s_%s' % (currentTime, description)
@@ -143,6 +165,11 @@ settings_filename =  os.path.join(folderPath, (fname_prefix + '_settings.csv')) 
 
 
 print(data_filename)
+
+
+
+
+
 
 def saveData(myWave1, myWave2):
     """ from custom1MHzWave_record_twochannel_16bit.py
@@ -888,7 +915,10 @@ distscale = time2mm(pseudotimescale)
 ax.plot(distscale, voltage_ch1, '.-', label='Ch. 1 (V)')
 ax.plot(distscale, voltage_ch2, '.-', label='Ch. 2 (V)')
 ax.legend()
-plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (WAVEGEN_N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
+#plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (WAVEGEN_N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
+#plt.title('%s @ SR=%.2e Hz (TR=%.2e s)' % (description, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
+plt.title('%s @ SR=%.2e Hz (TR=%.2e s)' % (description, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
+
 #ax.set_xlabel('Time [sec] (TR waits omitted)')
 ax.set_xlabel('Distance [mm] (take diffs!)')
 ax.set_ylabel('Volts')    
@@ -908,6 +938,8 @@ plt.show()
 ax_ch1 = plt.subplot(2, 1, 1)
 ax_ch1.plot(distscale, voltage_ch1, '.-', label='Ch. 1 (V)')
 
+plt.title('%s @ SR=%.2e Hz (TR=%.2e s)' % (description, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
+
 ax_ch2 = plt.subplot(2, 1, 2, sharex=ax_ch1)
 ax_ch2.plot(distscale, voltage_ch2, '.-', color='tab:orange', label='Ch. 2 (V)')
 
@@ -915,7 +947,7 @@ ax_ch1.set_xlabel('Distance [mm] (take diffs!)')
 ax_ch2.set_xlabel('Distance [mm] (take diffs!)')
 ax_ch1.set_ylabel('Ch. 1 Volts')    
 ax_ch2.set_ylabel('Ch. 2 Volts')    
-plt.title('Signals Shown Separately')
+#plt.title('Signals Shown Separately')
 plt.show()
 
 
