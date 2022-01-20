@@ -105,15 +105,21 @@ import ad2_tools as ad2       # my library
 # Adding temp save data from custom1MHzWave_record_twochannel_16bit.py
 
 
-# TODO - easy filename annotation (input arg - maybe basic argparse?)
-# TODO - what about output directory???
-# TODO - metadata file - voltage range/input etc.
 # TODO - convert to voltage here, before saving? (maybe not; save first - most important...)
-# TODO - functionalize the pulse waveform/setup to make it easy to change
+# DONE - functionalize the pulse waveform/setup to make it easy to change
 #   TODO - add wavegen shortname w/ metadata to add to output filename
 #   TODO - add another CSV config file output, or append to the existing one?
 
+# TODO 1/19/22: START HERE
+# TODO [#A] BUG - seems to be inconsistent trigger timing w/ 16k buffer - 
+# TODO look at pulse repetition time (both square and sine waves) 
+##### TODO !!! changed this to 20ms for now! #####
+# TODO look at trigger holdout (ignore time after initial trigger) - may need to update!
 
+# TODO need a way to trigger the acquisition if using discrete inputs/Rx transducers and isolated wavegen as separate Tx!!!!
+# TODO update plot title based on description... most of the title info is not really useful anymore.
+# TODO same subplot w/ synced zoom for re-opening saved CSV files
+# TODO check description for underscores... breaks file open parser
 
 
 parser = argparse.ArgumentParser(description='Analog Discovery 2, 16-bit 2-ch  Ultrasound Acquisition')
@@ -126,14 +132,6 @@ args = parser.parse_args()
 folderPath = args.folder
 description = args.desc
 append_pulse_info = args.pulseinfo  # TODO not yet implemented
-
-
-#description = "inUSgel_lgBUF_4milSample_lessarr"    # description for filename
-#folderPath = "C:\\Users\\pancol01\\Documents\\ultrasound\\testdoublerecord"
-#folderPath = '2021-12-08-phantomTests'
-#folderPath = '2022-01-03-codeUpdatetests'
-
-
 
 currentTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -191,7 +189,7 @@ def saveData(myWave1, myWave2):
     #print('\nfile written at' + available_filename)
 
 
-# TODO max out buffer to 16k input - max out time window!
+# WIP max out buffer to 16k input - max out time window!
 # TODO set ch1 range to 5V to really analyze the internal transducer ringing...
 # TODO look for a return echo @ 2x time of 180deg sensor...
 
@@ -208,7 +206,8 @@ WAVEGEN_PULSE_TYPE = 'SINE_N_CYCLES'
 # This is for a single positive-going rectangular pulse, that is repeated every 'wait time'
 # (some params are shared with sinewave N cycles)
 WAVEGEN_N_ACQUISITIONS = 10        # number of pulse/echo repetitions to acquire
-WAVEGEN_WAIT_TIME = 0.01            # seconds between acquisiztions (== TR period, also serves as trigger/acquisition interval)
+WAVEGEN_WAIT_TIME = 0.02            # seconds between acquisiztions (== TR period, also serves as trigger/acquisition interval)
+# TODO NOTE - change wait time to 20ms to account for 16k buffer - make this adjust automatically/make warning work!
 WAVEGEN_PULSE_WIDTH = 0.5e-6          # pulse width in seconds (???) TODO CHECK THIS (confirm w/ scope)
 #WAVEGEN_PULSE_WIDTH = 1e-6          # pulse width in seconds
 # TODO should pulse width be 1/2 usec?
@@ -502,7 +501,10 @@ def setpulse_sine_n_cycles(dwf, hdwf, channel, n_cycles, amplitude, v_offset=0, 
     # 40000 times to repeat is to be able to have it run for at least a few seconds
     timesToRepeat = c_int(40000)  # no unit
     #pulseWidth = c_double(10e-6)  # in seconds  # TODO does this control # of cycles???
-    pulseWait = c_double(900e-6)  # in seconds
+
+    #pulseWait = c_double(900e-6)  # in seconds [ORIGINAL]
+    pulseWait = c_double(WAVEGEN_WAIT_TIME)   # update so that the big global is valid
+
     dwf.FDwfAnalogOutRunSet(hdwf, channel, pulseWidth) 
     dwf.FDwfAnalogOutWaitSet(hdwf, channel, pulseWait) 
     dwf.FDwfAnalogOutRepeatSet(hdwf, channel, timesToRepeat) 
@@ -752,6 +754,10 @@ print('\n')
 
 print('INPUT_SAMPLE_RATE: %f MHz' % (INPUT_SAMPLE_RATE*1e-6))
 print('1 acqusition time: %e sec (%f usec)' % (INPUT_SINGLE_ACQUISITION_TIME, INPUT_SINGLE_ACQUISITION_TIME*1e6))
+if INPUT_SINGLE_ACQUISITION_TIME >= WAVEGEN_WAIT_TIME: 
+    print('\tWARNING: buffer time > pulse wave time (may get multiple excitations per Receive period)!')
+
+
 print('full record time : %f sec' % BIG_BUFFER_FULL_TIME) 
 print()
 print('INPUT_SAMPLE_SIZE: %d (for 1 acquisition)' % INPUT_SAMPLE_SIZE)
@@ -860,19 +866,22 @@ def mm2time(d):
 
 
 
+
 # plot proper voltages against pseudo-time
-plt.plot(pseudotimescale, voltage_ch1, '.-', label='Ch. 1 (V)')
-plt.plot(pseudotimescale, voltage_ch2, '.-', label='Ch. 2 (V)')
-plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (WAVEGEN_N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
-plt.xlabel('Seconds (TR delays not shown!)')
-plt.ylabel('Volts')
-plt.legend()
-#plt.xlim([0, 1000e-6])
-plt.show()
+#plt.plot(pseudotimescale, voltage_ch1, '.-', label='Ch. 1 (V)')
+#plt.plot(pseudotimescale, voltage_ch2, '.-', label='Ch. 2 (V)')
+#plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (WAVEGEN_N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
+#plt.xlabel('Seconds (TR delays not shown!)')
+#plt.ylabel('Volts')
+#plt.legend()
+##plt.xlim([0, 1000e-6])
+#plt.show()
+
+
 
 
 # plot distance and time together (voltage)
-fix, ax = plt.subplots()
+fig, ax = plt.subplots()
 distscale = time2mm(pseudotimescale)
 #ax.plot(pseudotimescale, voltage_ch1, '.-', label='Ch. 1 (V)')
 #ax.plot(pseudotimescale, voltage_ch2, '.-', label='Ch. 2 (V)')
@@ -889,6 +898,29 @@ ax2 = ax.secondary_xaxis('top', functions=(mm2time, time2mm))
 ax2.set_xlabel('Time [sec] (TR waits omitted)')
 #ax2.set_xlabel('Distance [mm] (diffs only!)')
 plt.show()
+
+
+
+
+# plot 2 channels as separate subplots
+# distance as X axis; linked zoom on x axis:
+# https://stackoverflow.com/questions/4200586/matplotlib-pyplot-how-to-zoom-subplots-together
+ax_ch1 = plt.subplot(2, 1, 1)
+ax_ch1.plot(distscale, voltage_ch1, '.-', label='Ch. 1 (V)')
+
+ax_ch2 = plt.subplot(2, 1, 2, sharex=ax_ch1)
+ax_ch2.plot(distscale, voltage_ch2, '.-', color='tab:orange', label='Ch. 2 (V)')
+
+ax_ch1.set_xlabel('Distance [mm] (take diffs!)')
+ax_ch2.set_xlabel('Distance [mm] (take diffs!)')
+ax_ch1.set_ylabel('Ch. 1 Volts')    
+ax_ch2.set_ylabel('Ch. 2 Volts')    
+plt.title('Signals Shown Separately')
+plt.show()
+
+
+
+
 
 #################
 # Plot error:
