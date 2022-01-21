@@ -21,6 +21,12 @@ file1 = sys.argv[1]
 file2 = sys.argv[2]
 title = sys.argv[3]
 
+C_WATER = 1482.3    # m/s
+MEDIUM = 'water'
+
+#C_AIR = 343.0       # m/s
+#MEDIUM = 'air'
+
 
 LEGEND_LOC = 'upper right'  # best to fix this with large number of points
 
@@ -52,10 +58,17 @@ ad2.conv_volts_2ch_int16(data2,
 
 
 
+# TODO assuming time scales are the same...
+distscale = 1000 * data1.Time * C_WATER  # convert to mm
 
-plt.plot(data1.Time, data1.ch1_volts, '.-', label='File1 Ch1 (V)')
-plt.plot(data2.Time, data2.ch1_volts, '.-', label='File2 Ch1 (V)')
-plt.xlabel('Time (sec - TR delays omitted!)')
+
+#plt.plot(data1.Time, data1.ch1_volts, '.-', label='File1 Ch1 (V)')
+#plt.plot(data2.Time, data2.ch1_volts, '.-', label='File2 Ch1 (V)')
+plt.plot(distscale, data1.ch1_volts, '.-', label='File1 Ch1 (V)')
+plt.plot(distscale, data2.ch1_volts, '.-', label='File2 Ch1 (V)')
+
+#plt.xlabel('Time (sec - TR delays omitted!)')
+plt.xlabel('Distance [mm]')
 plt.ylabel('Volts')
 plt.title(title + ' (Ch1)')
 plt.legend(loc=LEGEND_LOC)
@@ -63,9 +76,12 @@ plt.show()
 
 
 
-plt.plot(data1.Time, data1.ch2_volts, '.-', label='File1 Ch2 (V)')
-plt.plot(data2.Time, data2.ch2_volts, '.-', label='File2 Ch2 (V)')
-plt.xlabel('Time (sec - TR delays omitted!)')
+#plt.plot(data1.Time, data1.ch2_volts, '.-', label='File1 Ch2 (V)')
+#plt.plot(data2.Time, data2.ch2_volts, '.-', label='File2 Ch2 (V)')
+plt.plot(distscale, data1.ch2_volts, '.-', label='File1 Ch2 (V)')
+plt.plot(distscale, data2.ch2_volts, '.-', label='File2 Ch2 (V)')
+#plt.xlabel('Time (sec - TR delays omitted!)')
+plt.xlabel('Distance [mm]')
 plt.ylabel('Volts')
 plt.title(title + ' (Ch2)')
 plt.legend(loc=LEGEND_LOC)
