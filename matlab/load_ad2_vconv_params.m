@@ -9,4 +9,4 @@ function A = load_ad2_vconv_params(filepath)
 %	TO VIEW NICELY: rows2vars(A)
 
 
-A = readtable(filepath)
+A = readtable(filepath);

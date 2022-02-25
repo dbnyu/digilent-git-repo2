@@ -29,7 +29,7 @@ if exist('v_range1', 'var') ~= 1
 	v_range1 = DEFAULT_CH1_RANGE; 
 end
 
-if exist('v_offset', 'var') ~= 1
+if exist('v_offset1', 'var') ~= 1
 	warning('using approx. default for v_offset1')
 	v_offset1 = DEFAULT_CH1_OFFSET;
 end
@@ -39,7 +39,7 @@ if exist('v_range2', 'var') ~= 1
 	v_range2 = DEFAULT_CH2_RANGE;
 end
 
-if exist('v_offset', 'var') ~= 1
+if exist('v_offset2', 'var') ~= 1
 	warning('using approx. default for v_offset2')
 	v_offset2 = DEFAULT_CH2_OFFSET;
 end
