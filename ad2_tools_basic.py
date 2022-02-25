@@ -14,6 +14,9 @@
     Doug Brantner 12/7/2021
 """
 
+# TODO maybe unify this with original ad2_tools & make 2 separate librarys (avoid redundancy)
+# TODO simple library for basics (starting ad2/dwf, etc.), and more complex/full function one (with extra imports)
+
 
 from ctypes import *
 #import matplotlib.pyplot as plt
