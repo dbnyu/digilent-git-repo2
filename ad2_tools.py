@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 #from dwfconstants import *
 import numpy as np
 import pandas as pd
+import datetime
 import sys
 
 # contstants
@@ -679,3 +680,12 @@ def plot_m_mode(data_m, title='M-Mode', ignore_rows=30):
     plt.xlabel('Repetition Index')
     plt.ylabel('Sample Index')  # TODO change to timescale/tissue depth
     plt.show()
+
+
+
+
+# General Utilities
+
+def get_timestamp():
+    """Return pre-formatted timestamp."""
+    return datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
