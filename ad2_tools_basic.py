@@ -1,5 +1,10 @@
 """Helper Functions for Digilent Analog Discovery 2.
 
+    BASIC PARED DOWN VERSION TO AVOID UNNECESSARY IMPORTS.
+    see ad2_tools.py for full version.
+
+    This version is customized for timestamp_record.py
+
     Requires Waveforms and Waveforms SDK.
     Requires ctypes
     Requires Numpy
@@ -11,10 +16,9 @@
 
 
 from ctypes import *
-import matplotlib.pyplot as plt
-#from dwfconstants import *
-import numpy as np
-import pandas as pd
+#import matplotlib.pyplot as plt
+#import numpy as np
+#import pandas as pd
 import datetime
 import sys
 
@@ -203,54 +207,6 @@ def check_and_print_error(dwf, throw=False):
 
 # scope setup & value conversion:
 
-def int16signal2voltage(data_int16, v_range, v_offset, verbose=False):
-    """Math-only int16 to volts conversion.
-
-        See get_volts_from_int16() for getting the exact values from the scope.
-
-        data_int16 = ctypes c_int16 array of raw oscilloscope data
-        v_range = scope voltage range
-        v_offset = scope voltage offset
-            These can both be passed as regular Python floats
-        NOTE: For exact voltage conversion, the exact v_range and v_offset
-            MUST be saved from the scope DURING acquisition.
-            The exact range is not 5.0V; it is more like 5.12345V 
-                so using v_range=5.0 V and v_offset=0.0 will only give an approximate voltage!
-
-        verbose: print intermediate values during type conversions for sanity check. (bool)
-        
-        Returns float64 array of proper (or approximate) voltage values.
-
-        # TODO datatype input arg
-    """
-
-    if verbose:
-        print('int16 conversion range, offset: %f, %f (both volts)' % (v_range, v_offset))
-        print('Raw int16 min, max:')
-        print('min: %d' % min(data_int16))
-        print('max: %d' % max(data_int16))
-
-    # TODO - maybe this implicit int16 -> float conversion is wrong? maybe we need to have an intermediate Numpy-int16 array to make sure bytes are copied correctly (endianness, signed/unsigned, etc...)???
-    # TODO - above is unlikely; bug was more likely because scope was not enabled during this call.
-    #       - TODO streamline this conversion; avoid unnecessary intermediate steps/array copies
-    #voltage_signal = np.fromiter(data_int16, dtype=float)
-    tmp = np.fromiter(data_int16, dtype=np.int16)
-
-    if verbose:
-        print('Numpy int16 min/max:')
-        print('min: %d' % np.min(data_int16))
-        print('max: %d' % np.max(data_int16))
-
-    voltage_signal = tmp.astype(np.float64, casting='safe') # TODO may be able to reduce to float32
-
-    if verbose:
-        print('Numpy float min/max:')
-        print('min: %d' % np.min(voltage_signal))
-        print('max: %d' % np.max(voltage_signal))
-
-    voltage_signal = (voltage_signal * v_range / 65536) + v_offset
-
-    return voltage_signal 
 
 
 def get_volts_from_int16(dwf, hdwf, channel, data_int16, v_range=None, v_offset=None):
@@ -516,44 +472,6 @@ def print_array(arr, line_len=10):
 #   - 1 channel vs. 2 channel signal
 #   - double-type voltages vs. int16 raw ADC values
 
-def load_2ch_int16_csv(filepath):
-    """Load a 2-channel int16 CSV file.
-
-        Expected column order:
-            0: index of samples (ie. row number)
-            1: Time (seconds) - this is derived from samplerate * index; not actual timestamps
-            2: ch1_int16 - raw int16 values from AD2 scope channel 1
-            3: ch2_int16 - raw int16 values from AD2 scope channel 2
-
-        Returns pandas dataframe.
-    """
-
-    data = pd.read_csv(filepath,
-                       names=['Index', 'Time', 'ch1_int16', 'ch2_int16'],
-                       dtype={'Index':int}
-                       # TODO force int16 type, or just allow doubles?
-                       )
-    return data
-
-
-def conv_volts_2ch_int16(data, v_range_ch1, v_offset_ch1, v_range_ch2, v_offset_ch2):
-    """Convert int16 values to volts and add columns to dataframe.
-
-        WARNING - This modifies the input dataframe!
-            (Pass by reference adds columns automatically without explicit return value!)
-
-        data = 2 channel, int16 dataframe from load_2ch_int16_csv()
-        v_range, v_offset = scope settings (use exact settings for exact voltages)
-    """
-    data['ch1_volts'] = int16signal2voltage(data.ch1_int16, 
-                                            v_range_ch1,
-                                            v_offset_ch1
-                                            )
-
-    data['ch2_volts'] = int16signal2voltage(data.ch2_int16, 
-                                            v_range_ch2,
-                                            v_offset_ch2
-                                            )
 
 
 
@@ -621,65 +539,9 @@ def assert_int(i):
 
 
 ### Plotting
-
-def bland_altman(y1, y2):
-    """Make a Bland-Altman Plot to compare 2 similar signals.
-
-        y1, y2 = 2 vectors, measurements of the same signal to compare
-    """
-    # TODO possible to pass kwargs to plot()?
-
-    # TODO return a handle to the plot, which can be used to set the title/xlabel/etc. later?
-    
-
-    mean = 0.5 * (y1 + y2);
-    diff = y1 - y2;
-
-    plt.plot(mean, diff, '.')
-    plt.title('Bland Altman')
-    plt.xlabel('Mean')
-    plt.ylabel('Difference')
-
-    mean_of_diff = np.mean(diff)
-    std_of_diff = np.std(diff)
-
-    print('Mean of difference: %f' % mean_of_diff)
-    print('Std. of difference: %f' % std_of_diff)
-
-    plt.axhline(mean_of_diff, color='k', linestyle='-', label='mean of diff') 
-    plt.axhline(std_of_diff,  color='k', linestyle='--', label='+stddev')
-    plt.axhline(-std_of_diff, color='k', linestyle='--', label='-stddev')
-
-    plt.show()
+# - see full ad2_tools.py
 
 
-def plot_m_mode(data_m, title='M-Mode', ignore_rows=30):
-    """Plot M-mode data
-    
-        data_m = 2D M-mode matrix (see reshape_to_M_mode())
-        title = optional title string
-        ignore_rows = number of rows to ignore for colormap limits
-                        ie. so that excitation pulse doesn't subdue everything else
-    """
-    # TODO - print timescale or tissue depth on Y axis (needs more input information)
-
-    # TODO extents to fill window?
-    # https://stackoverflow.com/questions/13384653/imshow-extent-and-aspect/13390798#13390798
-
-    #clim_min = np.min(data_m[30:][:])
-    #clim_max = np.max(data_m[30:][:])
-    clim_max = np.max(np.abs(data_m[ignore_rows:, :]))   # abs should make it centered on zero
-
-    # TODO colormap is still not great...
-
-
-    plt.imshow(data_m, cmap='gray', aspect='auto')
-    plt.clim(-clim_max, clim_max)
-    plt.colorbar()
-    plt.title(title)
-    plt.xlabel('Repetition Index')
-    plt.ylabel('Sample Index')  # TODO change to timescale/tissue depth
-    plt.show()
 
 
 
