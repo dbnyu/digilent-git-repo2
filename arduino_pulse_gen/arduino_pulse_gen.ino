@@ -20,10 +20,10 @@
 // TODO for LED to be visible we may need LED duration > Pulse Width...
 
 long TR_DELAY = 2000;  // microseconds between pulses
-// average expected ~2-4 MILLIseconds MRI TR
+// average expected ~2-4 milliseconds MRI TR (2000-4000 usec)
 
 long PULSE_WIDTH = 1; // microseconds for high pulse
-// (TODO will this work? too small?)
+// NOTE: with this = 1, Rigol scope shows actual pulse with ~0.320 usec...
         
 
 // TODO make these in the same block so we can just write both at once (bitwise/registerwise)
