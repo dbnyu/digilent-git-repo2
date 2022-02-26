@@ -1,13 +1,29 @@
 """Wait for trigger pulses on Scope input and record timestamps of [this] host PC to file.
 
+    WARNING: If using a laptop, it should be plugged in to power source, to avoid
+            low-power USB mode/delays (noted on Dell Windows 10 Laptop)
+            - Previously noted high drop/corrupt data rate with laptop running on battery-only
+                - likely due to a Windows power-save mode
+            - THIS MAY INTRODUCE GROUND LOOP ISSUES...
+
+
+
+
 
     Doug Brantner
     2/25/2022
 
     References:
+    - Analog Discovery 2:
+      - High-Precision timestamps may not be possible:
+        - https://forum.digilentinc.com/topic/4798-timestamp-of-digital-input-transition/#comment-19494
+        - https://forum.digilentinc.com/topic/19943-question-about-time-stamps-in-exported-csv-files/#comment-55258
+        - https://forum.digilentinc.com/topic/19919-analog-discovery-2-and-waveforms-timing-questions/
+        - https://forum.digilentinc.com/topic/3670-measuring-frequency/
     - https://docs.python.org/3/library/signal.html#signal.SIGINT
     - https://stackoverflow.com/questions/1112343/how-do-i-capture-sigint-in-python
     - https://docs.python.org/3/tutorial/inputoutput.html
+
 """
 
 
@@ -24,11 +40,25 @@ import signal
 import sys
 import os
 
+# TODO - would Ext Trigger pin be faster than AnalogIn Trigger???
+# TODO would an Arduino + Serial -> python script (or C?) be faster?
 
+# DONE - arduino code for testimg (signal/pulse generator)
+# DONE - put this in its own folder (arduino stuff needs its own folder anyway)
 
 # TODO avoid Anaconda imports (numpy, pandas etc.) - works in Cygwin without them (so far)
 # TODO loop forever
 # TODO wait for trigger
+#   TODO - look at FDwfAnalogInStatusTime (SDK docs page 23)
+#       - this is probably not what we want: FDwfAnalogInSamplingSourceSet (probably clock source for sample rate?
+#   TODO - FDwfAnalogInTriggerHoldOffInfo - holdoff time (depends on MRI pulse/trigger shape)
+#   TODO - XXX - probably want this FDwfAnalogInTriggerFilterInfo as 'decimate' to check every sample
+#           - otherwise need to wait for avg(N) samples to go high...
+#
+#   TODO if we do need to fill a dummy buffer (ie. single acquisition):
+#       - TODO make buffer as small as possible (0 or 1 sample)
+#       - TODO play with trigger offset so that the dummy data is all pre-roll (ie. trigger is last sample in the acq. so that there's no need to wait for additional samples before returning...)
+#
 # TODO record timestamp string
 #   TODO - MATCH TOFCAMERA STRING FORMAT?
 #   TODO - record raw (simplest/fastest representation) of timestamp & parse to human later?
@@ -59,6 +89,31 @@ import os
 #       - TODO - does python compiler smartly skip 'if' statements that are always false????
 #       - TODO - ie. if the value is never touched again, can it optimize out the whole branch???
 
+# From SDK Documentation:
+#Note: To ensure consistency between device status and measured data, the following AnalogInStatus*functions
+#do not communicate with the device. These functions only return information and data from the last
+#FDwfAnalogInStatus call.
+# - apparently applies to  FDwfAnalogInStatusTime
+
+# TODO look at this: FDwfAnalogInStatusSample
+
+
+# USER-EDITABLE OPTIONS:
+INPUT_SAMPLE_RATE = 10e6      # Hz  # TODO do we need this? probably set as high as possible...
+
+INPUT_SAMPLE_SIZE = 16384   # sample buffer size (# of samples per acquisition) MAX for extended memory config
+
+
+
+SCOPE_VOLT_RANGE_CH1 = 5.0      # oscilloscope ch1 input range (volts)
+SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not yet implemented (probably not needed; zero is preferred)
+
+
+# Trigger Configuration:
+# TODO INPUT_TRIGGER_POSITION_INDEX  do we need this?
+SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
+TRIGGER_TYPE = trigtypeEdge
+TRIGGER_CONDITION = DwfTriggerSlopeRise
 
 
 # Parse Input Arguments
@@ -72,11 +127,7 @@ args = parser.parse_args()
 out_folder = args.folder
 description = args.desc
 
-startTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-filename = '%s_%s.csv' % (startTime, description)
-#filename = '20220225-150808_timestamps.csv'    # test for if file already exists (timestamped names should avoid this anyway)
 
-fullpath = os.path.join(out_folder, filename)
 
 
 def close_file():
@@ -94,14 +145,54 @@ def signal_handler(signal, frame):
 
 
 # TODO setup AD2
-# TODO START HERE
+print('Opening Analog Discovery 2 device...')
+dwf = ad2b.load_dwf()
+hdwf = c_int()
+dwf.FDwfDeviceOpen(c_int(-1), byref(hdwf)) # default settings
+
+if hdwf.value == hdwfNone.value:
+    szError = create_string_buffer(512)
+    dwf.FDwfGetLastErrorMsg(szError);
+    print("failed to open device\n"+str(szError.value))
+    sys.exit(1)
 
 
+dwf.FDwfDeviceAutoConfigureSet(hdwf, c_int(0))  # disable auto-configure after each setting change
+# Requires calling Configure manually to start device.
+
+
+# TODO skippipng the entire analog in configure part... see if it does anything...
+# lines 596-...
+
+
+# configure Trigger:
+dwf.FDwfAnalogInTriggerAutoTimeoutSet(hdwf, c_double(0)) # disable auto trigger on timeout
+dwf.FDwfAnalogInTriggerSourceSet(hdwf, trigsrcDetectorAnalogIn) # one of the analog in channels
+dwf.FDwfAnalogInTriggerChannelSet(hdwf, c_int(0)) # first channel
+dwf.FDwfAnalogInTriggerTypeSet(hdwf, TRIGGER_TYPE)  # TODO there are options here.
+dwf.FDwfAnalogInTriggerLevelSet(hdwf, c_double(SCOPE_TRIGGER_VOLTAGE))
+dwf.FDwfAnalogInTriggerConditionSet(hdwf, TRIGGER_CONDITION) 
+# TODO do we need this:
+#dwf.FDwfAnalogInTriggerPositionSet(hdwf, c_double(INPUT_TRIGGER_POSITION_TIME)) 
+
+
+
+
+
+
+
+# Set up file/folder saving:
+print('Saving timestamps in folder: %s' % out_folder)
 pathlib.Path(out_folder).mkdir(parents=True, exist_ok=True)
 
-print('Saving timestamps in folder: %s' % out_folder)
-print('Filename: %s' % filename)
 
+startTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+filename = '%s_%s.csv' % (startTime, description)
+#filename = '20220225-150808_timestamps.csv'    # test for if file already exists (timestamped names should avoid this anyway)
+
+
+print('Filename: %s' % filename)
+fullpath = os.path.join(out_folder, filename)
 
 # register signal handler (before/right after file is actually opened)
 signal.signal(signal.SIGINT, signal_handler)    # TODO make sure this works cross-platform!
@@ -132,10 +223,29 @@ if os.path.isfile(fullpath):
 
 with open(fullpath, 'w') as f:
 
+    print('Enabling AnalogIn...')
+    print('Wait at least 2 seconds to stabilize/warmup...')
+    # TODO add forced delay?
+
     print('\nPress Ctrl+C to stop.\n')
+
+    dwf.FDwfAnalogInConfigure(hdwf, c_bool(False), c_bool(True))    # This starts the actual acquisition
 
     while True:
     
         # TODO get trigger
         # TODO write timestamp
         pass
+
+        # Check if scope triggered; do not copy data to PC (2nd arg)
+        dwf.FDwfAnalogInStatus(hdwf, c_int(0), byref(scope_status))
+        # TODO declare these:
+        dwf.FDwfAnalogInStatusTime(hdwf, byref(trig_utc_sec), byref(trig_ticks), byref(ticks_per_sec))
+
+        # TODO format & write to file; do minimal parsing for quicker loop
+
+
+# TODO close device (configure false) - this should be protected like file closing...
+dwf.FDwfAnalogOutConfigure(hdwf, c_int(WAVEGEN_CHANNEL), c_bool(False))
+dwf.FDwfDeviceCloseAll()
+dwf.FDwfDeviceClose(hdwf) # from AnalogOut_Pulse.py
