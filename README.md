@@ -7,12 +7,28 @@
   - tested on Anaconda ```conda 4.10.3```, ```Python 3.7.6``` on Windows 10
   - running python via command line in Powershell.
 
+## Main Functions
+### Ultrasound Acquisition
+- ```my_custom_trigger_16bit_2ch.py``` 
+  - Assumes trigger signal is connected to Oscilloscope Channel 1
+  - Wavegen Ch. 1 is the excitation pulse
+    - Typical usage is to Tee/Split wavegen into Scope Ch 1. for trigger, with other end of Tee going to the Transducer
+  - Scope Ch. 2 is record-only
+
+### Timestamp Triggered Recording
+Records a timestamp (from Host PC clock) each time a trigger pulse is recieved. For syncing local recordings (TOF camera, etc.) with MRI pulses.
+- TODO
+- Accepts a trigger input in Scope Ch. 1	(no other connections used at the moment - no ultrasound acquisition)
+- Records a timestamp (from the host PC clock) on each trigger pulse
+  - Saves a CSV file of human-readable timestamps
+- ```arduino_pulse_gen``` - rough pulse generator to provide external test trigger pulse
 
 ## Helper Functions
 - see [ad2_tools.py](ad2_tools.py) for some wrapper/ helper functions for the Waveforms SDK (dwf) and ctypes variables
   - converting int16 -> double values
   - printing AD2 settings & errors
   - printing ctypes arrays
+- Previous versions in the ```previous_versions/``` folder.
 
 ## Digilent Analog Discovery 2 Specs
 - [Basic Specs & Pinout](https://digilent.com/reference/test-and-measurement/analog-discovery-2/specifications)
