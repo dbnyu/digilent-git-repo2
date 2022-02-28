@@ -7,11 +7,14 @@
             - THIS MAY INTRODUCE GROUND LOOP ISSUES...
 
 
+    Notes:
+        - We may be approaching the trigger/re-arm limits of the AD2 device (testing ~2ms TR)
+        - Max "tick" resolution may not be very high
+            - number of ticks/sec as recorded in files is ~1000 so far... so best precision is 1ms???
+        - Min buffer size is 16 - so it will always acquire at least 16 samples before being "done"
+            - this may affect the max re-arm/re-trigger rate
 
 
-
-    Doug Brantner
-    2/25/2022
 
     References:
     - Analog Discovery 2:
@@ -24,6 +27,10 @@
     - https://stackoverflow.com/questions/1112343/how-do-i-capture-sigint-in-python
     - https://docs.python.org/3/tutorial/inputoutput.html
 
+
+
+    Doug Brantner
+    2/25/2022
 """
 
 
@@ -47,40 +54,29 @@ import os
 # DONE - put this in its own folder (arduino stuff needs its own folder anyway)
 
 # TODO avoid Anaconda imports (numpy, pandas etc.) - works in Cygwin without them (so far)
-# TODO loop forever
-# TODO wait for trigger
-#   TODO - look at FDwfAnalogInStatusTime (SDK docs page 23)
-#       - this is probably not what we want: FDwfAnalogInSamplingSourceSet (probably clock source for sample rate?
-#   TODO - FDwfAnalogInTriggerHoldOffInfo - holdoff time (depends on MRI pulse/trigger shape)
-#   TODO - XXX - probably want this FDwfAnalogInTriggerFilterInfo as 'decimate' to check every sample
-#           - otherwise need to wait for avg(N) samples to go high...
 #
-#   TODO if we do need to fill a dummy buffer (ie. single acquisition):
-#       - TODO make buffer as small as possible (0 or 1 sample)
+# do we  need to fill a dummy buffer (ie. single acquisition)?:
+#       - TRYING THIS make buffer as small as possible (0 or 1 sample)
 #       - TODO play with trigger offset so that the dummy data is all pre-roll (ie. trigger is last sample in the acq. so that there's no need to wait for additional samples before returning...)
+#           - hopefully minimal delay with sample size == 1.
 #
-# TODO record timestamp string
-#   TODO - MATCH TOFCAMERA STRING FORMAT?
-#   TODO - record raw (simplest/fastest representation) of timestamp & parse to human later?
-# TODO write to file
+#   DONE - record raw (simplest/fastest representation) of timestamp & parse to human later?
+# IN PROGRESS write to file
 #   TODO ramdisk/tmpfile? for faster writing?
 #   TODO could lead to memory issues with other recordings ( TOF camera) or long acquisitions...
 #   TODO may need to do some code profiling to make sure diskwrites are fast enough
 #   TODO diagnostic function to troubleshoot?
-# DONE catch Ctrl+C and end loop
-# DONE? catch all exceptions and CLOSE THE FILE PROPERLY- then re-throw?
-#       -failsafe so that data is not lost if there's some error...
-#       - 'with' block should guarantee this...
 # TODO indicator onscreen?
+#   NOTE screen I/O can be slow
+#   - may not be possible while keeping loop as fast as possible...
 #   TODO on linux, can just tail/follow the output file, or 'tee'
 #   TODO make this optional (ideally without 'if' statements) to display or not display full strings
-#       NOTE screen I/O can be slow
 #   TODO also just a 'period' to show that it's working...
 #   TODO pulses are order of milliseconds... so every 1000th pulse shouldn't hurt too much
 #       TODO look for delays that correlate with this just to be safe...
-#   TODO [#C] could also blink an LED on the AD2... but that doesn't prove file is getting written.
 # TODO - optimization - only get the TIME and not the full DATE/TIME, save some bits???
 #   - only need to store the date once ie. in filename...
+#   - not sure if this would make a difference...using AD2 builtin time function which returns seconds since Unix Epoch as 3 sets of int
 # TODO - could print some 'useful' information ie. approx. pulse frequency
 #       - meaning rough pulses/sec frequency counter (which should match MRI TR)
 #       - might require a circular buffer...
@@ -89,33 +85,35 @@ import os
 #       - TODO - does python compiler smartly skip 'if' statements that are always false????
 #       - TODO - ie. if the value is never touched again, can it optimize out the whole branch???
 
+
+
 # From SDK Documentation:
 #Note: To ensure consistency between device status and measured data, the following AnalogInStatus*functions
 #do not communicate with the device. These functions only return information and data from the last
 #FDwfAnalogInStatus call.
 # - apparently applies to  FDwfAnalogInStatusTime
 
-# TODO look at this: FDwfAnalogInStatusSample
 
 
 # USER-EDITABLE OPTIONS:
-INPUT_SAMPLE_RATE = 10e6      # Hz  # TODO do we need this? probably set as high as possible...
-
-INPUT_SAMPLE_SIZE = 16384   # sample buffer size (# of samples per acquisition) MAX for extended memory config
-
-
-
-SCOPE_VOLT_RANGE_CH1 = 5.0      # oscilloscope ch1 input range (volts)
-SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not yet implemented (probably not needed; zero is preferred)
+INPUT_SAMPLE_RATE = 100e6    # Hz (100MHz max)
+INPUT_SAMPLE_SIZE = 16       # sample buffer size  - minimum appears to be 16 (anything less defaults back to 16)
+# TODO - if this can't be avoided maybe we need to set the trigger position ...
 
 
-# Trigger Configuration:
-# TODO INPUT_TRIGGER_POSITION_INDEX  do we need this?
-SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
+# Trigger Configuration: TODO ADJUST FOR MRI PULSES:
+SCOPE_VOLT_RANGE_CH1 = 5.0      # oscilloscope ch1 input range (volts) OPTIONS 5 or 50 only!
+#SCOPE_VOLT_OFFSET_CH1 = 0.     # oscilloscope ch1 offset (volts)  # TODO not yet implemented (probably not needed; zero is preferred)
+SCOPE_TRIGGER_VOLTAGE = 1.0     # trigger threshold (volts)
+TRIGGER_HOLDOFF_TIME = 20e-6    # 10usec pulse width x2
 TRIGGER_TYPE = trigtypeEdge
 TRIGGER_CONDITION = DwfTriggerSlopeRise
-# - TODO FDwfAnalogInTriggerHoldOff
-# - TODO FDwfAnalogInTriggerFilterInfo 
+TRIGGER_FILTER = filterDecimate
+
+# TODO INPUT_TRIGGER_POSITION_INDEX  do we need this?
+# TODO look at this: FDwfAnalogInStatusSample
+
+
 
 
 # Parse Input Arguments
@@ -148,34 +146,54 @@ def close_AD2_device():
     dwf.FDwfDeviceCloseAll()
     dwf.FDwfDeviceClose(hdwf)
 
+# TODO make this easier to integrate (how?... want to avoid 'if' statements in loop...)
+#def debug_plot():
+#    # DEBUG ONLY:
+#    import numpy as np
+#    import matplotlib.pyplot as plt
+#
+#    t = (1./INPUT_SAMPLE_RATE) * np.arange(debug_buffer_size)
+#
+#    print('Debug Plot...')
+#    plt.plot(t, acquisition_data_ch1, '.-')
+#    plt.xlabel('Time (s)')
+#    plt.ylabel('Volts')
+#    plt.show()
 
 
 def signal_handler(signal, frame):
+    """Handler for Control+C end of program.
+
+        All cleanup/printing goes here.
+    """
+
+    loop_end_time = datetime.datetime.now()
 
     close_AD2_device()
 
-    print('Got %d triggers.' % loop_count)
 
-    # TODO close file safely
+    loop_time_duration = loop_end_time - loop_start_time
+    print('Got %d triggers in %d seconds.' % (loop_count, loop_time_duration.total_seconds()))
+
+    if loop_count > 0:
+        tr = float(loop_time_duration.total_seconds()) / loop_count
+        tr *= 1000  # convert to milliseconds
+        print('(Rough TR = %.3f ms)' % tr)
+        # TODO NOTE this can be very innacurate for small time periods/start/stop by hand with inherent delays
+
+
+    # TODO close file safely    (should be handled automatically by 'with' context manager)
     print('Exiting...')
+
+    #debug_plot()    # DEBUG ONLY
 
     sys.exit(0) # TODO get return code from file closer?
 
 
-#def write_ascii_line(f, psec_utc, ptick, pticksPerSecond):
-#    """Write one line to an ASCII CSV comma-separated file.
-#
-#        f = file handle
-#        psec_utc = values to write to file (see FDwfAnalogInStatusTime)
-#        ptick = ...
-#        pticksPerSecond = ...
-#
-#        Writes directly to file with fixed separator; adds newline at end.
-#    """
-#    f.write(
 
 
-# TODO setup AD2
+
+# setup AD2
 print('Opening Analog Discovery 2 device...')
 dwf = ad2b.load_dwf()
 hdwf = c_int()
@@ -191,9 +209,14 @@ if hdwf.value == hdwfNone.value:
 dwf.FDwfDeviceAutoConfigureSet(hdwf, c_int(0))  # disable auto-configure after each setting change
 # Requires calling Configure manually to start device.
 
-
-# TODO skippipng the entire analog in configure part... see if it does anything...
-# lines 596-...
+# Configure Scope Input
+# TODO make channel a variable (need to find all c_int(0)'s that refer to the channel...)
+dwf.FDwfAnalogInFrequencySet(hdwf, c_double(INPUT_SAMPLE_RATE))
+dwf.FDwfAnalogInBufferSizeSet(hdwf, c_int(INPUT_SAMPLE_SIZE))
+dwf.FDwfAnalogInChannelRangeSet(hdwf, c_int(0), c_double(SCOPE_VOLT_RANGE_CH1))
+dwf.FDwfAnalogInChannelEnableSet(hdwf, c_int(0), c_bool(True))  # ch1 
+# TODO dwf.FDwfAnalogInAcquisitionModeSet ?? 
+# default seemsto be 0 which *should* re-arm the trigger automatically after each acquisition
 
 
 # configure Trigger:
@@ -203,7 +226,10 @@ dwf.FDwfAnalogInTriggerChannelSet(hdwf, c_int(0)) # first channel
 dwf.FDwfAnalogInTriggerTypeSet(hdwf, TRIGGER_TYPE)  # TODO there are options here.
 dwf.FDwfAnalogInTriggerLevelSet(hdwf, c_double(SCOPE_TRIGGER_VOLTAGE))
 dwf.FDwfAnalogInTriggerConditionSet(hdwf, TRIGGER_CONDITION) 
-# TODO do we need this:
+dwf.FDwfAnalogInTriggerHoldOffSet(hdwf, c_double(TRIGGER_HOLDOFF_TIME))
+dwf.FDwfAnalogInTriggerFilterSet(hdwf, c_int(0), filterDecimate)    # NOTE - default is filterAverage- this could be slowing us down...
+
+# TODO do we need this?:
 #dwf.FDwfAnalogInTriggerPositionSet(hdwf, c_double(INPUT_TRIGGER_POSITION_TIME)) 
 
 
@@ -219,16 +245,18 @@ pathlib.Path(out_folder).mkdir(parents=True, exist_ok=True)
 
 startTime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 filename = '%s_%s.csv' % (startTime, description)
-#filename = '20220225-150808_timestamps.csv'    # test for if file already exists (timestamped names should avoid this anyway)
 
 
 print('Filename: %s' % filename)
 fullpath = os.path.join(out_folder, filename)
 
+
+
 # register signal handler (before/right after file is actually opened)
-signal.signal(signal.SIGINT, signal_handler)    # TODO make sure this works cross-platform!
+# TODO make sure this works cross-platform!
 # works in Powershell (Windows 10 host/Anaconda)
 # works in Cygwin (Windows 10 host/Anaconda python but no libraries/env)
+signal.signal(signal.SIGINT, signal_handler)
 
 
 
@@ -242,12 +270,11 @@ signal.signal(signal.SIGINT, signal_handler)    # TODO make sure this works cros
 
 # Buffers (single vars) to receive time data from scope trigger:
 # TODO can we hardcode as c_uint32/64?
-trig_utc_sec = c_uint()
-trig_ticks = c_uint()
+trig_utc_sec  = c_uint()
+trig_ticks    = c_uint()
 ticks_per_sec = c_uint()
 
 
-# TODO time the loop (can overwrite start_time if we want)
 
 
 
@@ -257,35 +284,91 @@ if os.path.isfile(fullpath):
     print('Exiting.')
     sys.exit(1)
 
+
+# DEBUG ONLY:
+#debug_buffer_n_count = 10
+#debug_buffer_size = debug_buffer_n_count * INPUT_SAMPLE_SIZE
+##acquisition_data_ch1 = (c_int16 * debug_buffer_size)()    # channel 1 main acquisition buffer (over full recording time)
+##acquisition_data_stride = INPUT_SAMPLE_SIZE * sizeof(c_int16)
+#
+#acquisition_data_ch1 = (c_double * debug_buffer_size)()
+#acquisition_data_stride = INPUT_SAMPLE_SIZE * sizeof(c_double)
+#
+#acquisition_data_index = 0
+
+
+# Scope Info/Debugging:
+scope_status = c_byte()  # scope channel 1 status
+holdoff_conf = c_double()   # confirm trigger holdoff time
+filter_conf = c_int()       # confirm trigger filter
+acqmode_conf = c_int()      # confirm acquisition mode  (TODO is the type correct? can't find ACQMODE type in python consts file)
+buffersize_conf = c_int()   # buffer size
+2
+buffersize_min = c_int()
+buffersize_max = c_int()
+
+
+
+
+
 with open(fullpath, 'w') as f:
 
-    print('Enabling AnalogIn...')
-    print('Wait at least 2 seconds to stabilize/warmup...')
-    # TODO add forced delay?
+    print('Enabling Analog Input...')
+    print('Please Wait at least 2 seconds to stabilize/warmup...')
 
-    print('\nPress Ctrl+C to stop.\n')
 
+
+    # Enable Scope:
     dwf.FDwfAnalogInConfigure(hdwf, c_bool(False), c_bool(True))    # This starts the actual acquisition
 
+    
+    # Confirm Scope Settings (must be enabled first):
+    dwf.FDwfAnalogInTriggerHoldOffGet(hdwf, byref(holdoff_conf))
+    print('Trigger Holdoff Confirm: ', holdoff_conf.value, ' sec')
+
+    dwf.FDwfAnalogInTriggerFilterGet(hdwf, c_int(0), byref(filter_conf))
+    print('Trigger Filter Confirm: %d' % filter_conf.value)
+
+    dwf.FDwfAnalogInAcquisitionModeGet(hdwf, byref(acqmode_conf))
+    print('Acquisition Mode Confirm: %d' % acqmode_conf.value)
+
+    dwf.FDwfAnalogInBufferSizeInfo(hdwf, byref(buffersize_min), byref(buffersize_max))
+    print('Min Buffer Size: %d' % buffersize_min.value)
+    print('Max Buffer Size: %d' % buffersize_max.value)
+
+    dwf.FDwfAnalogInBufferSizeGet(hdwf, byref(buffersize_conf))
+    print('Buffer Size Confirm: %d' % buffersize_conf.value)
+
+    # check for AD2 errors before starting
+    ad2b.check_and_print_error(dwf)
+
+
+    print('\nPress Ctrl+C to stop.\n')
+    loop_start_time = datetime.datetime.now()
     while True: # main loop
-        # TODO get trigger
+
 
         # Check if scope triggered; do not copy data to PC (2nd arg)
         # status check loop - busy wait until trigger/"Acquisition" is ready:
         while True:
-            dwf.FDwfAnalogInStatus(hdwf, c_int(0), byref(scope_status))
+            dwf.FDwfAnalogInStatus(hdwf, c_int(1), byref(scope_status)) # TODO change back to 0?
+            # TODO what does above c_int do? are the triggers still accurate with 0?
+            # TODO is it introducing a delay (by transferring acquired data over USB) and adding delay to triggers?
+            # TODO
             if scope_status.value == DwfStateDone.value:
                 break
+                #print('|', end='', flush=True)  # DEBUG ONLY
 
 
         # get time from trigger:
+        # (we are ignoring the actual data acquired, only need the time.)
         dwf.FDwfAnalogInStatusTime(hdwf, byref(trig_utc_sec), byref(trig_ticks), byref(ticks_per_sec))
 
 
         # Write ASCII Data to file (slower, larger file):
-        f.write(repr(trig_utc_sec.value) + ',' + \
-                repr(trig_ticks.value) + ',' + \
-                repr(trig_utc_sec.ticks_per_sec) + '\n')
+        f.write(repr(trig_utc_sec.value)  + ',' + \
+                repr(trig_ticks.value)    + ',' + \
+                repr(ticks_per_sec.value) + '\n')
         # TODO is \n sufficient or do we need Windows newline?
         # TODO is repr necessary?
 
@@ -293,7 +376,29 @@ with open(fullpath, 'w') as f:
         #   - ie. 3 values, each value is 4 bytes then AAAABBBBCCCCAAAABBBBCCCC...
         #   - so no newlines, etc. and every 12th byte is the next set of values
 
+        # DEBUG ONLY: capture scope data
+        #if loop_count < debug_buffer_n_count:
+        #    # int 16 data:
+        #    #dwf.FDwfAnalogInStatusData16(hdwf, 
+        #    #                             c_int(0),
+        #    #                             byref(acquisition_data_ch1, acquisition_data_index),
+        #    #                             0,
+        #    #                             INPUT_SAMPLE_SIZE
+        #    #                             )
+
+        #    # double (actual voltage) data:
+        #    dwf.FDwfAnalogInStatusData(hdwf,
+        #                               c_int(0),
+        #                               byref(acquisition_data_ch1, acquisition_data_index),
+        #                               INPUT_SAMPLE_SIZE
+        #                               )
+
+        #    acquisition_data_index += acquisition_data_stride 
+
         loop_count += 1
 
 
 
+
+    print('Error: Hit End of Loop.')    # should never reach here; signit handler should catch Ctrl+C
+print('Error: Hit end of context manager')
