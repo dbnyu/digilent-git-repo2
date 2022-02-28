@@ -895,14 +895,14 @@ def mm2time(d):
 
 
 # plot proper voltages against pseudo-time
-#plt.plot(pseudotimescale, voltage_ch1, '.-', label='Ch. 1 (V)')
-#plt.plot(pseudotimescale, voltage_ch2, '.-', label='Ch. 2 (V)')
-#plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (WAVEGEN_N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
-#plt.xlabel('Seconds (TR delays not shown!)')
-#plt.ylabel('Volts')
-#plt.legend()
-##plt.xlim([0, 1000e-6])
-#plt.show()
+plt.plot(pseudotimescale, voltage_ch1, '.-', label='Ch. 1 (V)')
+plt.plot(pseudotimescale, voltage_ch2, '.-', label='Ch. 2 (V)')
+plt.title('%d Acq. @ %.2e Hz Sample Rate (%.2e s window)' % (WAVEGEN_N_ACQUISITIONS, INPUT_SAMPLE_RATE, INPUT_SINGLE_ACQUISITION_TIME))
+plt.xlabel('Seconds (TR delays not shown!)')
+plt.ylabel('Volts')
+plt.legend()
+#plt.xlim([0, 1000e-6])
+plt.show()
 
 
 
