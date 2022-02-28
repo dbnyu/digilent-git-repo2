@@ -114,6 +114,8 @@ SCOPE_VOLT_OFFSET_CH1 = 0.      # oscilloscope ch1 offset (volts)  # TODO not ye
 SCOPE_TRIGGER_VOLTAGE = 1.0     # volts, threshold to start acquisition
 TRIGGER_TYPE = trigtypeEdge
 TRIGGER_CONDITION = DwfTriggerSlopeRise
+# - TODO FDwfAnalogInTriggerHoldOff
+# - TODO FDwfAnalogInTriggerFilterInfo 
 
 
 # Parse Input Arguments
@@ -128,7 +130,8 @@ out_folder = args.folder
 description = args.desc
 
 
-
+# globals for loop stats (need to be global for signal_handler at end)
+loop_count = 0      # number of loops/triggers received 
 
 def close_file():
     # TODO  - this should be called by sigint handler AND global try/catch
@@ -136,12 +139,40 @@ def close_file():
     pass
 
 
+def close_AD2_device():
+    """Handler to close & disable the Analog Discovery 2 device before exit."""
+
+    print('Stopping device...')
+    #dwf.FDwfAnalogOutConfigure(hdwf, c_int(WAVEGEN_CHANNEL), c_bool(False)) # not used here.
+    dwf.FDwfAnalogInConfigure(hdwf, c_bool(False), c_bool(False)) # stop acquisitions
+    dwf.FDwfDeviceCloseAll()
+    dwf.FDwfDeviceClose(hdwf)
+
+
+
 def signal_handler(signal, frame):
+
+    close_AD2_device()
+
+    print('Got %d triggers.' % loop_count)
 
     # TODO close file safely
     print('Exiting...')
 
     sys.exit(0) # TODO get return code from file closer?
+
+
+#def write_ascii_line(f, psec_utc, ptick, pticksPerSecond):
+#    """Write one line to an ASCII CSV comma-separated file.
+#
+#        f = file handle
+#        psec_utc = values to write to file (see FDwfAnalogInStatusTime)
+#        ptick = ...
+#        pticksPerSecond = ...
+#
+#        Writes directly to file with fixed separator; adds newline at end.
+#    """
+#    f.write(
 
 
 # TODO setup AD2
@@ -209,9 +240,14 @@ signal.signal(signal.SIGINT, signal_handler)    # TODO make sure this works cros
 # - from https://docs.python.org/3/tutorial/inputoutput.html
 
 
+# Buffers (single vars) to receive time data from scope trigger:
+# TODO can we hardcode as c_uint32/64?
+trig_utc_sec = c_uint()
+trig_ticks = c_uint()
+ticks_per_sec = c_uint()
+
 
 # TODO time the loop (can overwrite start_time if we want)
-# TODO count # of samples/triggers and print at end
 
 
 
@@ -231,21 +267,33 @@ with open(fullpath, 'w') as f:
 
     dwf.FDwfAnalogInConfigure(hdwf, c_bool(False), c_bool(True))    # This starts the actual acquisition
 
-    while True:
-    
+    while True: # main loop
         # TODO get trigger
-        # TODO write timestamp
-        pass
 
         # Check if scope triggered; do not copy data to PC (2nd arg)
-        dwf.FDwfAnalogInStatus(hdwf, c_int(0), byref(scope_status))
-        # TODO declare these:
+        # status check loop - busy wait until trigger/"Acquisition" is ready:
+        while True:
+            dwf.FDwfAnalogInStatus(hdwf, c_int(0), byref(scope_status))
+            if scope_status.value == DwfStateDone.value:
+                break
+
+
+        # get time from trigger:
         dwf.FDwfAnalogInStatusTime(hdwf, byref(trig_utc_sec), byref(trig_ticks), byref(ticks_per_sec))
 
-        # TODO format & write to file; do minimal parsing for quicker loop
+
+        # Write ASCII Data to file (slower, larger file):
+        f.write(repr(trig_utc_sec.value) + ',' + \
+                repr(trig_ticks.value) + ',' + \
+                repr(trig_utc_sec.ticks_per_sec) + '\n')
+        # TODO is \n sufficient or do we need Windows newline?
+        # TODO is repr necessary?
+
+        # TODO try to write raw bytes (maybe fixed bytes, no separators,
+        #   - ie. 3 values, each value is 4 bytes then AAAABBBBCCCCAAAABBBBCCCC...
+        #   - so no newlines, etc. and every 12th byte is the next set of values
+
+        loop_count += 1
 
 
-# TODO close device (configure false) - this should be protected like file closing...
-dwf.FDwfAnalogOutConfigure(hdwf, c_int(WAVEGEN_CHANNEL), c_bool(False))
-dwf.FDwfDeviceCloseAll()
-dwf.FDwfDeviceClose(hdwf) # from AnalogOut_Pulse.py
+
