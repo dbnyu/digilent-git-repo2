@@ -22,18 +22,18 @@
 
 
 
+
+// TODO for LED to be visible we may need LED duration > Pulse Width...
+
+long TR_DELAY = 1000;  // microseconds between pulses
+// average expected ~2-4 milliseconds MRI TR (2000-4000 usec)
+
+long PULSE_WIDTH = 1; // microseconds for high pulse
+// NOTE: with this = 1, Rigol scope shows actual pulse with ~0.320 usec...
 // NOTE: for delayMicroseconds() - 
 // Largest value that will produce an accurate delay is 16383
 // 1 usec delay seems too small (~0.32usec on scope)
 // 10 usec delay seems ok (slightly less than 10us but useable)
-
-// TODO for LED to be visible we may need LED duration > Pulse Width...
-
-long TR_DELAY = 2000;  // microseconds between pulses
-// average expected ~2-4 milliseconds MRI TR (2000-4000 usec)
-
-long PULSE_WIDTH = 10; // microseconds for high pulse
-// NOTE: with this = 1, Rigol scope shows actual pulse with ~0.320 usec...
 
 
 int N_PULSES = 1000;  // output a fixed number of pulses when momentary switch is closed
