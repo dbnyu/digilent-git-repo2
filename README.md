@@ -17,12 +17,15 @@
 
 ### Timestamp Triggered Recording
 Records a timestamp (from Host PC clock) each time a trigger pulse is recieved. For syncing local recordings (TOF camera, etc.) with MRI pulses.
-- ```arduino_pulse_gen``` - rough pulse generator to provide external test trigger pulse
+
+- ```timestamp_logger.py```
   - Accepts a trigger input in Scope Ch. 1	(no other connections used at the moment - no ultrasound acquisition)
   - Records a timestamp (from the host PC clock) on each trigger pulse
     - Saves a CSV file of human-readable timestamps
+  - TODO - save timestamps as raw binary, try to get more performance out of the loop
 - ```plot_timestamps.py``` to plot the dt values and WIP on parsing the timestamps (ASCII text right now)
-- TODO - save timestamps as raw binary, try to get more performance out of the loop
+- Test functions:
+  - ```arduino_pulse_gen``` - rough pulse generator to provide external test trigger pulse
 
 ## Helper Functions
 - see [ad2_tools.py](ad2_tools.py) for some wrapper/ helper functions for the Waveforms SDK (dwf) and ctypes variables
