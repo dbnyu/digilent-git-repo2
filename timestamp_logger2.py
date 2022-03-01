@@ -48,7 +48,14 @@ import sys
 import os
 
 
+# MAJOR TODO LIST:
 # TODO  !!! write raw bytes to file instead of ASCII. !!!
+#   - try code profiler to see how much difference this makes...
+# TODO triggerPosition - make trigger the LAST point in the acquisition
+#   - 100Mhz @ 16 samples min buffer = 1e-8 seconds per sample
+#       --> default trigger @ center of buffer (ie. 8th sample)
+#       --> 8e-8 sec minimum delay (for acquiring 8 samples AFTER trigger edge)
+#       --> 8ns inherent delay
 
 # TODO - would Ext Trigger pin be faster than AnalogIn Trigger???
 # TODO would an Arduino + Serial -> python script (or C?) be faster?

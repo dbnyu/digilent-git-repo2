@@ -26,6 +26,16 @@ Records a timestamp (from Host PC clock) each time a trigger pulse is recieved. 
 - ```plot_timestamps.py``` to plot the dt values and WIP on parsing the timestamps (ASCII text right now)
 - Test functions:
   - ```arduino_pulse_gen``` - rough pulse generator to provide external test trigger pulse
+Usage:
+```bash
+	# To record a file, create a new folder, then give that folder path as an argument with -f flag:
+	python timestamp_logger.py -f <path to folder>
+
+	# To add a descriptive filename (ie. MRI/experiment settings) as a string:
+	# (best to avoid spaces in filenames!)
+	# Also try to avoid underscores - to make parsing filename timestamp easier
+	python timestamp_logger.py -f <path to folder> -d "RAVE3D-test-2"
+```
 
 ## Helper Functions
 - see [ad2_tools.py](ad2_tools.py) for some wrapper/ helper functions for the Waveforms SDK (dwf) and ctypes variables
