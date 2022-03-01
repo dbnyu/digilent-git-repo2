@@ -115,7 +115,7 @@ TRIGGER_TYPE = trigtypeEdge
 TRIGGER_CONDITION = DwfTriggerSlopeRise
 TRIGGER_FILTER = filterDecimate
 
-# TODO INPUT_TRIGGER_POSITION_INDEX  do we need this?
+# TODO INPUT_TRIGGER_POSITION_INDEX  do we need this? !!!XXX!!!! - sample size min is 16
 # TODO look at this: FDwfAnalogInStatusSample
 
 
