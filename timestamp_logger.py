@@ -47,6 +47,9 @@ import signal
 import sys
 import os
 
+
+# TODO  !!! write raw bytes to file instead of ASCII. !!!
+
 # TODO - would Ext Trigger pin be faster than AnalogIn Trigger???
 # TODO would an Arduino + Serial -> python script (or C?) be faster?
 
@@ -105,7 +108,9 @@ INPUT_SAMPLE_SIZE = 16       # sample buffer size  - minimum appears to be 16 (a
 SCOPE_VOLT_RANGE_CH1 = 5.0      # oscilloscope ch1 input range (volts) OPTIONS 5 or 50 only!
 #SCOPE_VOLT_OFFSET_CH1 = 0.     # oscilloscope ch1 offset (volts)  # TODO not yet implemented (probably not needed; zero is preferred)
 SCOPE_TRIGGER_VOLTAGE = 1.0     # trigger threshold (volts)
-TRIGGER_HOLDOFF_TIME = 20e-6    # 10usec pulse width x2
+#TRIGGER_HOLDOFF_TIME = 20e-6    # 10usec pulse width x2
+TRIGGER_HOLDOFF_TIME = 10e-6    # 10usec pulse width x2
+
 TRIGGER_TYPE = trigtypeEdge
 TRIGGER_CONDITION = DwfTriggerSlopeRise
 TRIGGER_FILTER = filterDecimate
